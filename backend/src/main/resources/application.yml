@@ -1,0 +1,100 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  profiles:
+    active: dev
+
+  datasource:
+    url: jdbc:postgresql://<DB_HOST>:<DB_PORT>/<DB_NAME>
+    username: <DB_USERNAME>
+    password: <DB_PASSWORD>
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          lob:
+            non_contextual_creation: true
+    generate-ddl: true
+    defer-datasource-initialization: true
+
+  sql:
+    init:
+      mode: always
+
+  # Redis Configuration
+  data:
+    redis:
+      host: <REDIS_HOST>
+      port: <REDIS_PORT>
+      password: <REDIS_PASSWORD>
+      timeout: 2000ms
+      jedis:
+        pool:
+          max-active: 8
+          max-wait: -1ms
+          max-idle: 8
+          min-idle: 0
+
+  security:
+    jwt:
+      secret: 6ee0722956002f69de212acbe4a300fe58477a38e5f5c1c893ac6407e6936e369d4a428193b024a3d5d8a0ef5ae0f247
+      expiration: 86400000 # 24 hours
+
+# Tron Configuration
+tron:
+  api:
+    url: <TRON_API_URL>
+  network:
+    name: <TRON_NETWORK_NAME>   # e.g. nile, mainnet
+    fullHost: <TRON_FULLHOST>
+    apiKey: <TRON_API_KEY>
+  contracts:
+    usdt: <USDT_CONTRACT_ADDRESS>
+
+# HD Wallet Security Configuration
+wallet:
+  encryption:
+    # Secret key for AES-256 encryption (REQUIRED in production)
+    secret: <WALLET_ENCRYPTION_SECRET>
+
+  mnemonic:
+    # Mnemonic seed (set via environment variable in production)
+    seed: <WALLET_MNEMONIC_SEED>
+
+  pool:
+    initialSize: 1000     # Generate 1000 child wallets on startup
+    minThreshold: 200     # Minimum free wallets before generating more
+    batchSize: 500        # How many to generate at once when needed
+
+  master:
+    minTrxBalance: 100    # Minimum TRX balance required for master wallet
+
+# Logging
+logging:
+  level:
+    com.UsdtWallet.UsdtWallet: DEBUG
+    org.springframework.security: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/application.log
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env
+  endpoint:
+    health:
+      show-details: when_authorized
