@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  /* Modern container system */
+  .ui-container {
+    @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Modern spacing system */
+  .ui-section {
+    @apply space-y-6 md:space-y-8;
+  }
+
+  /* Modern card system */
+  .ui-card {
+    @apply relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl;
+  }
+
+  .ui-card-header {
+    @apply p-6 border-b border-white/10;
+  }
+
+  .ui-card-body {
+    @apply p-6;
+  }
+
+  .ui-card-footer {
+    @apply p-6 border-t border-white/10;
+  }
+
+  /* Modern grid system */
+  .ui-grid {
+    @apply grid gap-6;
+  }
+
+  .ui-grid-responsive {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6;
+  }
+
+  .ui-grid-kpi {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6;
+  }
+
+  .ui-grid-2col {
+    @apply grid grid-cols-1 lg:grid-cols-2 gap-6;
+  }
+
+  /* Modern tabs */
+  .ui-tabs {
+    @apply flex flex-wrap sm:flex-nowrap gap-2 p-2 bg-white/5 rounded-2xl border border-white/10;
+  }
+
+  .ui-tab {
+    @apply flex-1 py-3 px-4 rounded-xl transition-all duration-300 font-medium text-sm flex items-center justify-center gap-2 min-w-0;
+  }
+
+  .ui-tab-active {
+    @apply bg-gradient-to-r from-yellow-500/20 to-yellow-400/20 text-yellow-300 border border-yellow-400/30 shadow-lg;
+  }
+
+  .ui-tab-inactive {
+    @apply text-gray-300 hover:text-white hover:bg-white/10 border border-transparent;
+  }
+
+  /* Modern table */
+  .ui-table-container {
+    @apply overflow-hidden rounded-2xl border border-white/10;
+  }
+
+  .ui-table-wrapper {
+    @apply overflow-x-auto;
+  }
+
+  .ui-table {
+    @apply min-w-full divide-y divide-white/10;
+  }
+
+  .ui-table-header {
+    @apply bg-white/5;
+  }
+
+  .ui-table-body {
+    @apply bg-white/5 divide-y divide-white/10;
+  }
+
+  /* Modern buttons */
+  .ui-btn {
+    @apply relative overflow-hidden rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-2;
+  }
+
+  .ui-btn-primary {
+    @apply bg-gradient-to-r from-yellow-500 to-yellow-400 text-black hover:from-yellow-400 hover:to-yellow-300 shadow-lg hover:shadow-xl hover:shadow-yellow-400/25;
+  }
+
+  .ui-btn-secondary {
+    @apply bg-white/10 text-white border border-white/20 hover:bg-white/20 hover:border-white/30;
+  }
+
+  .ui-btn-ghost {
+    @apply text-gray-300 hover:text-white hover:bg-white/10;
+  }
+
+  /* Modern inputs */
+  .ui-input {
+    @apply w-full p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400/50 focus:bg-white/15 transition-all duration-300;
+  }
+
+  /* Modern badges */
+  .ui-badge {
+    @apply inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  /* Status colors */
+  .status-success {
+    @apply bg-green-500/20 text-green-300 border border-green-500/30;
+  }
+
+  .status-warning {
+    @apply bg-yellow-500/20 text-yellow-300 border border-yellow-500/30;
+  }
+
+  .status-error {
+    @apply bg-red-500/20 text-red-300 border border-red-500/30;
+  }
+
+  .status-info {
+    @apply bg-blue-500/20 text-blue-300 border border-blue-500/30;
+  }
+
+  /* Animations */
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
