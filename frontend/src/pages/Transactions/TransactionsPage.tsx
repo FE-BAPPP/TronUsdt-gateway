@@ -18,6 +18,7 @@ import {
   Clock,
   XCircle,
   AlertCircle,
+  X, // added for modal close
 } from "lucide-react"
 
 export function TransactionsPage() {
@@ -33,6 +34,8 @@ export function TransactionsPage() {
   } = useWithdrawalHistory(currentPage, pageSize)
   const [summary, setSummary] = useState<any>(null)
   const [exporting, setExporting] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [detailTx, setDetailTx] = useState<any | null>(null)
 
   useEffect(() => {
     // Load 30-day summary
@@ -136,68 +139,158 @@ export function TransactionsPage() {
               </tr>
             </thead>
             <tbody className="bg-white/5 divide-y divide-white/10">
-              {transactions.map((tx: any) => (
-                <tr key={tx.id} className="hover:bg-white/10 transition-colors">
-                  <td className="py-4 px-6">
-                    <div className="flex items-center space-x-2">
-                      {getTypeIcon(tx.transactionType || "WITHDRAWAL")}
-                      <span className="text-white font-medium">{tx.transactionType || "WITHDRAWAL"}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6">
-                    <div className="text-white font-bold">
-                      {typeof tx.netAmount !== "undefined" ? (
-                        <>
-                          <span>{tx.netAmount}</span>
-                          <span className="text-gray-400 text-xs ml-2">pts net</span>
-                          {typeof tx.fee !== "undefined" && (
-                            <span className="text-gray-500 text-xs ml-2">(fee {tx.fee})</span>
-                          )}
-                        </>
-                      ) : (
-                        <span>{tx.amount} pts</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-4 px-6">
-                    <span
-                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${getStatusColor(tx.status || tx.state || "")}`}
-                    >
-                      {getStatusIcon(tx.status || tx.state || "")}
-                      {tx.status || tx.state || ""}
-                    </span>
-                  </td>
-                  <td className="py-4 px-6">
-                    <div>
-                      <p className="text-white">{new Date(tx.createdAt || tx.time || Date.now()).toLocaleDateString()}</p>
-                      <p className="text-gray-400 text-xs">
-                        {new Date(tx.createdAt || tx.time || Date.now()).toLocaleTimeString()}
-                      </p>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6">
-                    {tx.txHash ? (
+              {transactions.map((tx: any) => {
+                const type = String(tx.transactionType || "WITHDRAWAL").toUpperCase()
+                const clickable = type === "WITHDRAWAL"
+                return (
+                  <tr
+                    key={tx.id}
+                    className={`hover:bg-white/10 transition-colors ${clickable ? 'cursor-pointer' : ''}`}
+                    onClick={() => {
+                      if (clickable) {
+                        setDetailTx(tx)
+                        setDetailOpen(true)
+                      }
+                    }}
+                  >
+                    <td className="py-4 px-6">
                       <div className="flex items-center space-x-2">
-                        <span className="text-gray-400 font-mono text-xs">
-                          {tx.txHash.substring(0, 10)}...{tx.txHash.substring(tx.txHash.length - 10)}
-                        </span>
-                        <button
-                          onClick={() => window.open(`https://nile.tronscan.org/#/transaction/${tx.txHash}`, "_blank")}
-                          className="flex items-center gap-1 text-yellow-400 hover:text-yellow-300 text-xs transition-colors"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          View
-                        </button>
+                        {getTypeIcon(tx.transactionType || "WITHDRAWAL")}
+                        <span className="text-white font-medium">{tx.transactionType || "WITHDRAWAL"}</span>
                       </div>
-                    ) : (
-                      <span className="text-gray-500 text-xs">{tx.toAddress || "Pending"}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="text-white font-bold">
+                        {/* Always display the gross requested amount if available */}
+                        <span>{typeof tx.amount !== "undefined" ? tx.amount : (typeof tx.netAmount !== "undefined" ? tx.netAmount : 0)} pts</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span
+                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${getStatusColor(tx.status || tx.state || "")}`}
+                      >
+                        {getStatusIcon(tx.status || tx.state || "")}
+                        {tx.status || tx.state || ""}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div>
+                        <p className="text-white">{new Date(tx.createdAt || tx.time || Date.now()).toLocaleDateString()}</p>
+                        <p className="text-gray-400 text-xs">
+                          {new Date(tx.createdAt || tx.time || Date.now()).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      {tx.txHash ? (
+                        <div className="flex items-center space-x-2">
+                          <span className="text-gray-400 font-mono text-xs">
+                            {tx.txHash.substring(0, 10)}...{tx.txHash.substring(tx.txHash.length - 10)}
+                          </span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); window.open(`https://nile.tronscan.org/#/transaction/${tx.txHash}`, "_blank") }}
+                            className="flex items-center gap-1 text-yellow-400 hover:text-yellow-300 text-xs transition-colors"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            View
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500 text-xs">{tx.toAddress || "Pending"}</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
+
+        {/* Withdrawal Details Modal */}
+        {detailOpen && detailTx && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
+            <div className="w-full max-w-lg relative overflow-hidden rounded-2xl">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-white/10 to-transparent"></div>
+              <div className="absolute inset-0 backdrop-blur-xl border border-white/20 rounded-2xl"></div>
+              <div className="relative z-10 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-white text-lg font-semibold flex items-center gap-2">
+                    <ArrowUpCircle className="w-5 h-5 text-red-400" />
+                    Withdrawal Details
+                  </h3>
+                  <button onClick={() => setDetailOpen(false)} className="text-gray-300 hover:text-white">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {(() => {
+                  const fee = typeof detailTx.fee !== 'undefined' ? Number(detailTx.fee) : undefined
+                  const net = typeof detailTx.netAmount !== 'undefined' ? Number(detailTx.netAmount) : undefined
+                  let amount: number
+                  if (typeof detailTx.amount !== 'undefined') amount = Number(detailTx.amount)
+                  else if (typeof net === 'number' && typeof fee === 'number') amount = net + fee
+                  else amount = Number(net || 0)
+
+                  return (
+                    <div className="space-y-3 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Requested</span>
+                        <span className="text-white font-medium">{amount} pts</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Fee</span>
+                        <span className="text-white font-medium">{typeof fee === 'number' ? fee : '-'} pts</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Net received</span>
+                        <span className="text-white font-medium">{typeof net === 'number' ? net : (amount && typeof fee === 'number' ? amount - fee : '-')} pts</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Status</span>
+                        <span className="text-white font-medium">{detailTx.status || detailTx.state || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Date</span>
+                        <span className="text-white font-medium">
+                          {new Date(detailTx.createdAt || detailTx.time || Date.now()).toLocaleDateString()} {new Date(detailTx.createdAt || detailTx.time || Date.now()).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">To Address</span>
+                        <span className="text-gray-300 break-all text-right">{detailTx.toAddress || '-'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-400">Transaction</span>
+                        {detailTx.txHash ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400 font-mono text-xs">
+                              {detailTx.txHash.substring(0, 10)}...{detailTx.txHash.substring(detailTx.txHash.length - 10)}
+                            </span>
+                            <button
+                              onClick={() => window.open(`https://nile.tronscan.org/#/transaction/${detailTx.txHash}`, '_blank')}
+                              className="flex items-center gap-1 text-yellow-400 hover:text-yellow-300 text-xs transition-colors"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              View
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500 text-xs">Pending</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                <div className="flex justify-end mt-6">
+                  <button onClick={() => setDetailOpen(false)} className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-lg">
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -254,7 +347,7 @@ export function TransactionsPage() {
     const list = withdrawalHistory?.content || []
     return list
       .filter((w: any) => new Date(w.createdAt || w.time || 0).getTime() >= cutoff)
-      .reduce((acc: number, w: any) => acc + toNum(typeof w.netAmount !== "undefined" ? w.netAmount : w.amount), 0)
+      .reduce((acc: number, w: any) => acc + toNum(typeof w.amount !== "undefined" ? w.amount : w.netAmount), 0)
   })()
 
   // Sums to compute net volume

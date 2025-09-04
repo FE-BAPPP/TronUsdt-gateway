@@ -30,41 +30,61 @@ export function P2PPage() {
     toUserId: "",
     amount: "",
     description: "",
-    password: "",
   })
   const [transferLoading, setTransferLoading] = useState(false)
   const [transferError, setTransferError] = useState<string | null>(null)
 
-  const handleTransfer = async (e: React.FormEvent) => {
+  // Password modal state for confirm
+  const [pwdOpen, setPwdOpen] = useState(false)
+  const [pwd, setPwd] = useState("")
+  const [pwdMsg, setPwdMsg] = useState<string | null>(null)
+  const [pwdSubmitting, setPwdSubmitting] = useState(false)
+
+  const openPwdModal = (e: React.FormEvent) => {
     e.preventDefault()
     setTransferError(null)
-    setTransferLoading(true)
 
+    // Basic validation before asking password
+    if (!transferForm.toUserId || !transferForm.amount) {
+      setTransferError("Please fill in recipient and amount")
+      return
+    }
+    const amt = parseFloat(transferForm.amount)
+    if (!isFinite(amt) || amt <= 0) {
+      setTransferError("Invalid amount")
+      return
+    }
+    setPwd("")
+    setPwdMsg(null)
+    setPwdOpen(true)
+  }
+
+  const submitTransferWithPwd = async () => {
+    if (!pwd) {
+      setPwdMsg("Password is required")
+      return
+    }
+    setPwdSubmitting(true)
     try {
-      if (!transferForm.password) {
-        setTransferError("Password is required")
-        setTransferLoading(false)
-        return
-      }
-
       const response = await userApi.transferPoints({
         toUserId: transferForm.toUserId,
         amount: Number.parseFloat(transferForm.amount),
         description: transferForm.description || undefined,
-        password: transferForm.password,
+        password: pwd,
       })
 
       if (response.success) {
-        setTransferForm({ toUserId: "", amount: "", description: "", password: "" })
-        refetch() 
+        setTransferForm({ toUserId: "", amount: "", description: "" })
+        setPwdOpen(false)
+        refetch()
         alert("Points transferred successfully!")
       } else {
-        setTransferError(response.message || "Transfer failed")
+        setPwdMsg(response.message || "Transfer failed")
       }
     } catch (err: any) {
-      setTransferError(err.message || "Transfer failed")
+      setPwdMsg(err.message || "Transfer failed")
     } finally {
-      setTransferLoading(false)
+      setPwdSubmitting(false)
     }
   }
 
@@ -155,9 +175,9 @@ export function P2PPage() {
 
       {/* Tab Content */}
       {activeTab === "transfer" && (
-        <motion.div 
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-white/10 to-transparent"></div>
@@ -167,7 +187,7 @@ export function P2PPage() {
               Transfer Points to User
             </h2>
 
-            <form onSubmit={handleTransfer} className="space-y-6">
+            <form onSubmit={openPwdModal} className="space-y-6">
               <div>
                 <label className="block text-gray-300 text-sm font-medium mb-2 flex items-center gap-2">
                   <User className="w-4 h-4" />
@@ -215,21 +235,6 @@ export function P2PPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-gray-300 text-sm font-medium mb-2 flex items-center gap-2">
-                  <Key className="w-4 h-4" />
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  value={transferForm.password}
-                  onChange={(e) => setTransferForm((prev) => ({ ...prev, password: e.target.value }))}
-                  className="w-full p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400/50 focus:bg-white/15 transition-all duration-300"
-                  placeholder="Enter your login password"
-                  required
-                />
-              </div>
-
               {transferError && (
                 <div className="relative overflow-hidden rounded-xl border border-red-500/30 bg-red-500/10">
                   <div className="p-4 flex items-center gap-2">
@@ -258,7 +263,7 @@ export function P2PPage() {
 
               <button
                 type="submit"
-                disabled={transferLoading || !transferForm.toUserId || !transferForm.amount || !transferForm.password}
+                disabled={transferLoading || !transferForm.toUserId || !transferForm.amount}
                 className="w-full relative overflow-hidden rounded-xl py-3 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-400"></div>
@@ -282,10 +287,44 @@ export function P2PPage() {
         </motion.div>
       )}
 
+      {/* Password Modal */}
+      {pwdOpen && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md relative overflow-hidden rounded-2xl">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-white/10 to-transparent"></div>
+            <div className="absolute inset-0 backdrop-blur-xl border border-white/20 rounded-2xl"></div>
+            <div className="relative z-10 p-6">
+              <h3 className="text-white text-lg font-semibold mb-2">Confirm Password</h3>
+              <p className="text-gray-400 text-sm mb-4">Enter your login password to confirm this transfer.</p>
+              <input
+                type="password"
+                value={pwd}
+                onChange={(e) => setPwd(e.target.value)}
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400/50"
+                placeholder="Enter your password"
+              />
+              {pwdMsg && <div className="text-sm text-red-400 mt-2">{pwdMsg}</div>}
+              <div className="flex justify-end gap-2 mt-4">
+                <button onClick={() => setPwdOpen(false)} className="px-4 py-2 text-gray-300 hover:text-white">
+                  Cancel
+                </button>
+                <button
+                  onClick={submitTransferWithPwd}
+                  disabled={pwdSubmitting}
+                  className="px-4 py-2 bg-yellow-500 text-black rounded-lg disabled:opacity-50"
+                >
+                  {pwdSubmitting ? "Submitting..." : "Confirm"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === "history" && (
-        <motion.div 
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-white/10 to-transparent"></div>

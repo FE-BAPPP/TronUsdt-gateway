@@ -263,6 +263,22 @@ function DepositSection({ depositsData, loading, error, onRefresh }: any) {
     return raw.address || raw.depositAddress || raw.usdtAddress || raw.trc20 || raw.tron || ""
   }, [depositsData])
 
+  const recentDeposits: any[] = depositsData?.history?.content || []
+
+  const statusBadge = (status: string) => {
+    const s = String(status || '').toLowerCase()
+    if (s.includes('completed') || s.includes('success') || s === 'confirmed') {
+      return { className: 'status-success', icon: <CheckCircle className="w-3 h-3" />, text: 'COMPLETED' }
+    }
+    if (s.includes('pending') || s.includes('processing')) {
+      return { className: 'status-warning', icon: <Clock className="w-3 h-3" />, text: 'PENDING' }
+    }
+    if (s.includes('failed') || s.includes('error') || s.includes('cancel')) {
+      return { className: 'status-error', icon: <X className="w-3 h-3" />, text: s.includes('cancel') ? 'CANCELED' : 'FAILED' }
+    }
+    return { className: 'status-info', icon: <Clock className="w-3 h-3" />, text: status || 'UNKNOWN' }
+  }
+
   if (loading) return <div className="text-center py-8 text-gray-400">Loading deposit information...</div>
   if (error) return <div className="text-red-400 text-center py-8">Error: {error}</div>
 
@@ -380,6 +396,34 @@ function DepositSection({ depositsData, loading, error, onRefresh }: any) {
                   <div className="ui-badge status-warning">
                     <Clock className="w-3 h-3" />
                     Pending
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recent Deposits */}
+      {recentDeposits.length > 0 && (
+        <div className="ui-card">
+          <div className="ui-card-header">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <ArrowDownCircle className="w-6 h-6 text-green-400" />
+              Recent Deposits
+            </h2>
+          </div>
+          <div className="ui-card-body">
+            <div className="space-y-3">
+              {recentDeposits.slice(0,5).map((d: any, idx: number) => (
+                <div key={idx} className="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/10">
+                  <div>
+                    <div className="font-semibold text-white">{d.amount} USDT</div>
+                    <div className="text-sm text-gray-400">{d.createdAt ? new Date(d.createdAt).toLocaleDateString() : ''}</div>
+                  </div>
+                  <div className={`ui-badge ${statusBadge(d.status).className}`}>
+                    {statusBadge(d.status).icon}
+                    {statusBadge(d.status).text}
                   </div>
                 </div>
               ))}

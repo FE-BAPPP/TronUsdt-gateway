@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { userApi } from "../services/api"
-import { useWallet, useTransactions, useWithdrawalHistory } from "../hooks/useApi"
+import { useWallet, useTransactions, useWithdrawalHistory, usePoints } from "../hooks/useApi"
 import { useNavigate } from "react-router-dom"
 import { 
-  Wallet, 
-  ArrowUpCircle, 
+  // Wallet,
+  ArrowUpCircle,
   ArrowDownCircle, 
   History, 
   TrendingUp, 
@@ -17,6 +17,7 @@ import {
   Users,
   ArrowRight
 } from "lucide-react"
+import { useAuth } from "../hooks/useAuth"
 
 export function Dashboard() {
   const { data: walletData, loading, error } = useWallet()
@@ -27,10 +28,11 @@ export function Dashboard() {
   const { data: withdraws } = useWithdrawalHistory(0, pageSize)
 
   useEffect(() => {
-    ;(async () => {
+    const load = async () => {
       const res = await userApi.getTransactionSummary(30)
       if (res.success) setSummary(res.data)
-    })()
+    }
+    load()
   }, [])
 
   if (loading) {
@@ -59,7 +61,9 @@ function UserDashboard({
   txs,
   withdraws,
 }: { wallet: any; summary: any; onNavigate: ReturnType<typeof useNavigate>; txs: any; withdraws: any }) {
-  
+  const { data: pointsData } = usePoints()
+  const { user } = useAuth()
+
   const pointsBalance = useMemo(() => {
     const pb = wallet?.pointsBalance ?? wallet?.points ?? wallet?.balance
     const n = typeof pb === "number" ? pb : Number(pb || 0)
@@ -99,10 +103,11 @@ function UserDashboard({
     return Number.isFinite(n) ? n : 0
   }
 
-  const getType = (obj: any) => String(obj?.transactionType ?? obj?.type ?? obj?.kind ?? "").toUpperCase()
+  const getType = (obj: any) => String(obj?.transactionType ?? obj?.type ?? obj?.kind ?? obj?.direction ?? "").toUpperCase()
   const daysBack = 30
   const cutoff = useMemo(() => Date.now() - daysBack * 24 * 60 * 60 * 1000, [])
 
+  // Local fallbacks (like TransactionsPage)
   const localDepositsSum = useMemo(() => {
     const content = txs?.content || []
     return content
@@ -115,30 +120,72 @@ function UserDashboard({
     const list = withdraws?.content || []
     return list
       .filter((w: any) => getTime(w) >= cutoff)
-      .reduce((acc: number, w: any) => acc + toNum(typeof w.netAmount !== "undefined" ? w.netAmount : w.amount), 0)
+      .reduce((acc: number, w: any) => acc + toNum(typeof w.amount !== "undefined" ? w.amount : w.netAmount), 0) // prefer gross
   }, [withdraws, cutoff])
 
+  // Deposits sum (summary first, otherwise local)
   const depositsSum = useMemo(() => {
-    let v = pickNumber(summary, ["depositsSum", "totalDeposited", "totalDepositAmount", "depositsTotal", "depositSum"])
+    let v = pickNumber(summary, ["totalDepositAmount", "depositsSum", "depositSum", "depositsTotal"]) // prefer names like TransactionsPage
     if (Number.isFinite(v)) return v
     v = sumArrayByFields(summary?.deposits ?? summary?.depositList ?? summary?.depositHistory ?? summary?.deposits30d, [
-      "amount", "netAmount", "points", "value", "total",
+      "amount", "netAmount", "value", "points", "total",
     ])
     if (Number.isFinite(v)) return v
     return localDepositsSum
   }, [summary, localDepositsSum])
 
+  // Withdrawals sum (prefer gross like TransactionsPage)
   const withdrawalsSum = useMemo(() => {
-    let v = pickNumber(summary, ["withdrawalsSum", "totalWithdrawn", "totalWithdrawalAmount", "withdrawalsTotal", "withdrawalSum"])
+    let v = pickNumber(summary, ["totalWithdrawalAmount", "withdrawalsSum", "withdrawalSum", "withdrawalsTotal"]) // prefer usual keys
     if (Number.isFinite(v)) return v
     v = sumArrayByFields(summary?.withdrawals ?? summary?.withdrawalList ?? summary?.withdrawalHistory ?? summary?.withdrawals30d, [
-      "amount", "netAmount", "points", "value", "total",
+      "amount", "netAmount", "value", "points", "total",
     ])
     if (Number.isFinite(v)) return v
     return localWithdrawSum
   }, [summary, localWithdrawSum])
 
-  const netVolume = useMemo(() => depositsSum - withdrawalsSum, [depositsSum, withdrawalsSum])
+  // Binance-style Net Volume: external flows only
+  const netExternal = useMemo(() => depositsSum - withdrawalsSum, [depositsSum, withdrawalsSum])
+
+  // P2P delta (optional breakdown)
+  const { p2pIn, p2pOut } = useMemo(() => {
+    const content = pointsData?.history?.content || []
+    const currentUserId = user?.id ? String(user.id) : undefined
+
+    const pick = (obj: any, ...keys: string[]) => {
+      for (const k of keys) {
+        if (typeof obj?.[k] !== 'undefined' && obj[k] !== null && obj[k] !== '') return obj[k]
+      }
+      return undefined
+    }
+    let inSum = 0, outSum = 0
+    for (const t of content) {
+      const when = getTime(t)
+      if (when < cutoff) continue
+      const txType = getType(t)
+      const fromIdRaw = pick(t, 'fromUserId', 'from_user_id')
+      const toIdRaw = pick(t, 'toUserId', 'to_user_id')
+      const fromId = fromIdRaw != null ? String(fromIdRaw) : undefined
+      const toId = toIdRaw != null ? String(toIdRaw) : undefined
+      let isOutgoing: boolean | undefined
+      if (currentUserId) {
+        if (fromId === currentUserId) isOutgoing = true
+        else if (toId === currentUserId) isOutgoing = false
+      }
+      if (isOutgoing === undefined) {
+        if (["P2P_SEND", "SEND", "OUT", "DEBIT"].includes(txType)) isOutgoing = true
+        if (["P2P_RECEIVE", "RECEIVE", "IN", "CREDIT"].includes(txType)) isOutgoing = false
+      }
+      const amount = toNum(pick(t, 'amount', 'points', 'value'))
+      if (!Number.isFinite(amount) || amount <= 0) continue
+      if (isOutgoing === true) outSum += amount
+      else if (isOutgoing === false) inSum += amount
+    }
+    return { p2pIn: inSum, p2pOut: outSum }
+  }, [pointsData, user, cutoff])
+
+  const netInclP2P = useMemo(() => netExternal + (p2pIn - p2pOut), [netExternal, p2pIn, p2pOut])
 
   const formatPts = (n: number) => {
     if (!Number.isFinite(n)) return "0.00"
@@ -150,7 +197,7 @@ function UserDashboard({
     return formatter.format(n)
   }
 
-  const netColor = netVolume > 0 ? "text-green-400" : netVolume < 0 ? "text-red-400" : "text-gray-300"
+  const netColor = netExternal > 0 ? "text-green-400" : netExternal < 0 ? "text-red-400" : "text-gray-300"
 
   return (
     <div className="ui-section">
@@ -227,7 +274,8 @@ function UserDashboard({
               </div>
               <div>
                 <div className="text-purple-400 text-sm font-medium">Net Volume (30d)</div>
-                <div className={`text-xl font-bold ${netColor}`}>{formatPts(netVolume)} PTS</div>
+                <div className={`text-xl font-bold ${netColor}`}>{formatPts(netExternal)} PTS</div>
+                <div className="text-gray-400 text-xs">P2P: +{formatPts(p2pIn)} / -{formatPts(p2pOut)} · Net change incl. P2P: {formatPts(netInclP2P)} PTS</div>
               </div>
             </div>
           </div>
