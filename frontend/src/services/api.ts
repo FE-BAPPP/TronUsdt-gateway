@@ -122,8 +122,35 @@ class UserApiClient extends BaseApiClient {
     return response;
   }
 
+  async logout() {
+    const res = await this.request<any>('/api/auth/logout', { method: 'POST' });
+    this.clearToken();
+    return res;
+  }
+
+  async forgotPassword(email: string) {
+    return this.request<any>('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    return this.request<any>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    });
+  }
+
   async getProfile() {
     return this.request<any>('/api/auth/profile');
+  }
+
+  async updateProfile(data: { fullName?: string; phone?: string; avatar?: string; description?: string; email?: string; }) {
+    return this.request<any>('/api/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   }
 
   async getWallet() {
@@ -150,7 +177,8 @@ class UserApiClient extends BaseApiClient {
   async transferPoints(data: { 
     toUserId: string; 
     amount: number; 
-    description?: string 
+    description?: string;
+    password: string;
   }) {
     return this.request<any>('/api/points/transfer', {
       method: 'POST',
@@ -185,6 +213,7 @@ class UserApiClient extends BaseApiClient {
   async createWithdrawal(data: { 
     amount: number; 
     toAddress: string; 
+    password: string;
   }) {
     return this.request<any>('/api/withdrawal/request', {
       method: 'POST',
@@ -401,8 +430,8 @@ export const healthApi = {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Network error',
-        error: error.message
+        data: null,
+        message: error.message || 'Network error'
       };
     }
   }

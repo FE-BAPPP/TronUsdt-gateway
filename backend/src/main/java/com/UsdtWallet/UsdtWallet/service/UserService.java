@@ -9,6 +9,7 @@ import com.UsdtWallet.UsdtWallet.repository.ChildWalletPoolRepository;
 import com.UsdtWallet.UsdtWallet.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,10 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final ChildWalletPoolRepository childWalletPoolRepository;
     private final JwtTokenProvider jwtTokenProvider;
+    private final EmailService emailService; // added
+
+    @Value("${security.passwordReset.withdrawalLockHours:24}")
+    private long withdrawalLockHours;
 
     /**
      * Register new user with auto wallet assignment
@@ -92,10 +97,10 @@ public class UserService {
                 .fullName(request.getFullName())
                 .phone(request.getPhone())
                 .role(User.Role.USER)
-                .status(1) // Active status
-                .isActive(true) // Set user as active
-                .isUser(true) // Set as user type
-                .userCreated("SYSTEM") // Set who created the user
+                .status(1)
+                .isActive(true)
+                .isUser(true)
+                .userCreated("SYSTEM")
                 .build();
     }
 
@@ -213,7 +218,7 @@ public class UserService {
 
         String walletAddress = getUserWalletAddress(userUuid);
 
-        // Create HashMap instead of Map.of() to avoid 10+ parameter limit
+        // Create HashMap
         Map<String, Object> userInfo = new java.util.HashMap<>();
         userInfo.put("id", user.getId().toString());
         userInfo.put("username", user.getUsername());
@@ -360,5 +365,60 @@ public class UserService {
             log.error("Error in createAdminAccount - Stack trace: ", e);
             throw e; // Re-throw to let controller handle
         }
+    }
+
+    /**
+     * Update password (expects already-encoded password)
+     */
+    @Transactional
+    public boolean updatePassword(UUID userId, String encodedPassword) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) return false;
+        user.setPassword(encodedPassword);
+        // Binance-like: mark password change time and disable withdrawals for N hours
+        user.setPasswordChangedAt(java.time.LocalDateTime.now());
+        user.setWithdrawalsDisabledUntil(java.time.LocalDateTime.now().plusHours(withdrawalLockHours));
+        userRepository.save(user);
+        log.info("Password updated for user {}. Withdrawals locked until {}", userId, user.getWithdrawalsDisabledUntil());
+        try {
+            if (user.getEmail() != null && !user.getEmail().isEmpty()) {
+                emailService.sendPasswordChangedEmail(user.getEmail());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to send password-changed email for user {}: {}", userId, e.getMessage());
+        }
+        return true;
+    }
+
+    /**
+     * Update basic profile fields
+     */
+    @Transactional
+    public Map<String, Object> updateProfile(UUID userId, com.UsdtWallet.UsdtWallet.controller.UserController.UpdateProfileRequest req) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (req.fullName != null) user.setFullName(req.fullName.trim());
+        if (req.phone != null) user.setPhone(req.phone.trim());
+        if (req.avatar != null) user.setAvatar(req.avatar.trim());
+        if (req.description != null) user.setDescription(req.description.trim());
+        if (req.email != null && !req.email.trim().isEmpty()) user.setEmail(req.email.trim());
+
+        user.setDateUpdated(LocalDateTime.now());
+        userRepository.save(user);
+
+        String walletAddress = getUserWalletAddress(user.getId());
+
+        return Map.of(
+            "id", user.getId().toString(),
+            "username", user.getUsername(),
+            "email", user.getEmail(),
+            "fullName", user.getFullName() != null ? user.getFullName() : "",
+            "phone", user.getPhone() != null ? user.getPhone() : "",
+            "avatar", user.getAvatar() != null ? user.getAvatar() : "",
+            "description", user.getDescription() != null ? user.getDescription() : "",
+            "walletAddress", walletAddress != null ? walletAddress : "",
+            "updatedAt", user.getDateUpdated()
+        );
     }
 }

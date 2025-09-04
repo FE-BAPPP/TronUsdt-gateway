@@ -21,6 +21,9 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     // Find by transaction hash
     Optional<WalletTransaction> findByTxHash(String txHash);
 
+    // Find deposit by sweep tx hash
+    Optional<WalletTransaction> findBySweepTxHash(String sweepTxHash);
+
     // Find transactions by user
     List<WalletTransaction> findByUserIdOrderByCreatedAtDesc(String userId);
 

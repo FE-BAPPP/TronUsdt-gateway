@@ -72,6 +72,10 @@ public class User {
     @LastModifiedDate
     private LocalDateTime dateUpdated;
 
+    // Security timestamps
+    private LocalDateTime passwordChangedAt;
+    private LocalDateTime withdrawalsDisabledUntil;
+
     public enum Gender {
         MALE, FEMALE, UNKNOWN;
     }

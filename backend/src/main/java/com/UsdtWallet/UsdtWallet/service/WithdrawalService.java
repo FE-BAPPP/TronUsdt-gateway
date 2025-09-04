@@ -60,6 +60,11 @@ public class WithdrawalService {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("User not found"));
 
+        // withdrawal lock after password reset
+        if (user.getWithdrawalsDisabledUntil() != null && LocalDateTime.now().isBefore(user.getWithdrawalsDisabledUntil())) {
+            throw new RuntimeException("Withdrawals are temporarily disabled until " + user.getWithdrawalsDisabledUntil() + " due to a recent security change.");
+        }
+
         // Validate password if provided
         if (request.getPassword() != null && !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new RuntimeException("Invalid password");

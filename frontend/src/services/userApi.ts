@@ -80,8 +80,9 @@ class UserApiClient {
       body: JSON.stringify({ username, password }),
     });
     
-    if (response.success && response.data?.token) {
-      this.setToken(response.data.token);
+    if (response.success && (response as any).data?.token) {
+      const token = (response as any).data.token;
+      this.setToken(token);
     }
     
     return response;
@@ -97,6 +98,21 @@ class UserApiClient {
     return this.request<any>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  // Forgot/Reset Password
+  async forgotPassword(email: string) {
+    return this.request<any>('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    return this.request<any>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
     });
   }
 
@@ -221,6 +237,8 @@ export default userApi;
 // Export individual functions for easier usage
 export const login = (username: string, password: string) => userApi.login(username, password);
 export const register = (data: any) => userApi.register(data);
+export const forgotPassword = (email: string) => userApi.forgotPassword(email);
+export const resetPassword = (token: string, newPassword: string) => userApi.resetPassword(token, newPassword);
 export const getProfile = () => userApi.getProfile();
 export const getWallet = () => userApi.getWallet();
 export const getDepositAddress = () => userApi.getDepositAddress();

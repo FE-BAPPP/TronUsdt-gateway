@@ -436,6 +436,12 @@ function WithdrawSection({ walletData, withdrawalsData, onSuccess }: any) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
+  // password modal state
+  const [pwdOpen, setPwdOpen] = useState(false)
+  const [pwd, setPwd] = useState("")
+  const [pwdSubmitting, setPwdSubmitting] = useState(false)
+  const [pwdMsg, setPwdMsg] = useState<string | null>(null)
+
   const availablePoints = useMemo(() => {
     const balance = walletData?.pointsBalance ?? walletData?.points ?? walletData?.balance
     const n = typeof balance === "number" ? balance : Number(balance || 0)
@@ -443,8 +449,9 @@ function WithdrawSection({ walletData, withdrawalsData, onSuccess }: any) {
   }, [walletData])
 
   const limits = withdrawalsData?.limits
+  const recent = withdrawalsData?.history?.content || []
 
-  const handleWithdraw = async (e: React.FormEvent) => {
+  const validateAndOpenPwd = (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
 
@@ -453,42 +460,61 @@ function WithdrawSection({ walletData, withdrawalsData, onSuccess }: any) {
       setError("Please fill in all required fields")
       return
     }
-
+    if (isNaN(amount) || amount <= 0) {
+      setError("Invalid amount")
+      return
+    }
     if (amount < (limits?.minAmount || 10)) {
       setError(`Minimum withdrawal amount is ${limits?.minAmount || 10} PTS`)
       return
     }
-
     if (amount > (limits?.maxAmount || 10000)) {
       setError(`Maximum withdrawal amount is ${limits?.maxAmount || 10000} PTS`)
       return
     }
-
     if (amount > availablePoints) {
       setError("Insufficient balance")
       return
     }
+    // open password modal
+    setPwd("")
+    setPwdMsg(null)
+    setPwdOpen(true)
+  }
 
-    setLoading(true)
-
+  const submitWithdrawWithPwd = async () => {
+    if (!pwd) {
+      setPwdMsg("Password is required")
+      return
+    }
+    setPwdSubmitting(true)
     try {
       const response = await userApi.createWithdrawal({
-        amount,
+        amount: parseFloat(withdrawForm.amount),
         toAddress: withdrawForm.toAddress,
+        password: pwd,
       })
-
       if (response.success) {
         setWithdrawForm({ amount: "", toAddress: "" })
-        onSuccess()
+        setPwdOpen(false)
+        onSuccess && onSuccess()
         alert("Withdrawal request submitted successfully")
       } else {
-        setError(response.message || "Withdrawal failed")
+        setPwdMsg(response.message || "Withdrawal failed")
       }
     } catch (err: any) {
-      setError(err.message || "Network error")
+      setPwdMsg(err.message || "Network error")
     } finally {
-      setLoading(false)
+      setPwdSubmitting(false)
     }
+  }
+
+  const cancelWithdrawal = async (id: number | string) => {
+    const ok = confirm("Cancel this pending withdrawal?")
+    if (!ok) return
+    const r = await userApi.cancelWithdrawal(id)
+    alert(r.message || (r.success ? "Cancel sent" : "Cancel failed"))
+    onSuccess && onSuccess()
   }
 
   return (
@@ -501,7 +527,7 @@ function WithdrawSection({ walletData, withdrawalsData, onSuccess }: any) {
           </h2>
         </div>
         <div className="ui-card-body">
-          <form onSubmit={handleWithdraw} className="space-y-6">
+          <form onSubmit={validateAndOpenPwd} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Amount (PTS)</label>
               <input
@@ -556,16 +582,62 @@ function WithdrawSection({ walletData, withdrawalsData, onSuccess }: any) {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="ui-btn ui-btn-primary py-4 px-6 w-full text-lg disabled:opacity-50"
-            >
-              {loading ? "Processing..." : "Submit Withdrawal"}
+            <button type="submit" disabled={loading} className="ui-btn ui-btn-primary py-4 px-6 w-full text-lg disabled:opacity-50">
+              Request Withdrawal
             </button>
           </form>
         </div>
       </div>
+
+      {/* Recent Withdrawals with Cancel */}
+      {recent.length > 0 && (
+        <div className="ui-card mt-6">
+          <div className="ui-card-header">
+            <h3 className="text-white font-semibold">Recent Withdrawals</h3>
+          </div>
+          <div className="ui-card-body space-y-3">
+            {recent.slice(0, 5).map((w: any) => (
+              <div key={w.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
+                <div className="text-gray-300 text-sm">{w.amount} USDT → {w.toAddress}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">{w.status}</span>
+                  {String(w.status).toUpperCase() === 'PENDING' && (
+                    <button onClick={() => cancelWithdrawal(w.id)} className="ui-btn ui-btn-ghost px-2 py-1 text-xs">Cancel</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Password Modal */}
+      {pwdOpen && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md relative overflow-hidden rounded-2xl">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-white/10 to-transparent"></div>
+            <div className="absolute inset-0 backdrop-blur-xl border border-white/20 rounded-2xl"></div>
+            <div className="relative z-10 p-6">
+              <h3 className="text-white text-lg font-semibold mb-2">Confirm Password</h3>
+              <p className="text-gray-400 text-sm mb-4">Enter your login password to confirm this withdrawal.</p>
+              <input
+                type="password"
+                value={pwd}
+                onChange={(e) => setPwd(e.target.value)}
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400/50"
+                placeholder="Enter your password"
+              />
+              {pwdMsg && <div className="text-sm text-red-400 mt-2">{pwdMsg}</div>}
+              <div className="flex justify-end gap-2 mt-4">
+                <button onClick={() => setPwdOpen(false)} className="px-4 py-2 text-gray-300 hover:text-white">Cancel</button>
+                <button onClick={submitWithdrawWithPwd} disabled={pwdSubmitting} className="px-4 py-2 bg-yellow-500 text-black rounded-lg disabled:opacity-50">
+                  {pwdSubmitting ? 'Submitting...' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

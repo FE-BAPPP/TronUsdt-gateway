@@ -18,6 +18,7 @@ import {
   Clock,
   RefreshCw,
   Wallet,
+  Key,
 } from "lucide-react"
 
 export function P2PPage() {
@@ -29,6 +30,7 @@ export function P2PPage() {
     toUserId: "",
     amount: "",
     description: "",
+    password: "",
   })
   const [transferLoading, setTransferLoading] = useState(false)
   const [transferError, setTransferError] = useState<string | null>(null)
@@ -39,14 +41,21 @@ export function P2PPage() {
     setTransferLoading(true)
 
     try {
+      if (!transferForm.password) {
+        setTransferError("Password is required")
+        setTransferLoading(false)
+        return
+      }
+
       const response = await userApi.transferPoints({
         toUserId: transferForm.toUserId,
         amount: Number.parseFloat(transferForm.amount),
         description: transferForm.description || undefined,
+        password: transferForm.password,
       })
 
       if (response.success) {
-        setTransferForm({ toUserId: "", amount: "", description: "" })
+        setTransferForm({ toUserId: "", amount: "", description: "", password: "" })
         refetch() 
         alert("Points transferred successfully!")
       } else {
@@ -206,6 +215,21 @@ export function P2PPage() {
                 />
               </div>
 
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2 flex items-center gap-2">
+                  <Key className="w-4 h-4" />
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={transferForm.password}
+                  onChange={(e) => setTransferForm((prev) => ({ ...prev, password: e.target.value }))}
+                  className="w-full p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400/50 focus:bg-white/15 transition-all duration-300"
+                  placeholder="Enter your login password"
+                  required
+                />
+              </div>
+
               {transferError && (
                 <div className="relative overflow-hidden rounded-xl border border-red-500/30 bg-red-500/10">
                   <div className="p-4 flex items-center gap-2">
@@ -234,7 +258,7 @@ export function P2PPage() {
 
               <button
                 type="submit"
-                disabled={transferLoading || !transferForm.toUserId || !transferForm.amount}
+                disabled={transferLoading || !transferForm.toUserId || !transferForm.amount || !transferForm.password}
                 className="w-full relative overflow-hidden rounded-xl py-3 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-400"></div>

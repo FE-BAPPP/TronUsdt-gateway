@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { useAuth } from "../../hooks/useAuth"
+import { userApi } from "../../services/api"
 import {
   User,
   Edit3,
@@ -29,8 +30,17 @@ export function ProfilePage() {
   })
 
   const handleSave = async () => {
-    setIsEditing(false)
-    alert("Profile updated successfully!")
+    try {
+      const res = await userApi.updateProfile({
+        fullName: profileData.fullName,
+        email: profileData.email,
+      })
+      if (!res.success) throw new Error(res.message || "Update failed")
+      setIsEditing(false)
+      alert("Profile updated successfully!")
+    } catch (e: any) {
+      alert(e.message || "Failed to update profile")
+    }
   }
 
   const handleLogout = () => {

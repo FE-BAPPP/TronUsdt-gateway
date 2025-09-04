@@ -91,4 +91,18 @@ public class JwtTokenProvider {
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512)
                 .compact();
     }
+
+    public Date getIssuedAtDate(String token) {
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+            return claims.getIssuedAt();
+        } catch (Exception e) {
+            log.warn("Failed to parse issued-at from token: {}", e.getMessage());
+            return null;
+        }
+    }
 }

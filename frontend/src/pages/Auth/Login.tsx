@@ -78,10 +78,7 @@ export function Login() {
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label
-                  htmlFor="username"
-                  className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2"
-                >
+                <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                   <User className="w-4 h-4" />
                   Username
                 </label>
@@ -98,10 +95,7 @@ export function Login() {
               </div>
 
               <div>
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2"
-                >
+                <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                   <Lock className="w-4 h-4" />
                   Password
                 </label>
@@ -127,11 +121,7 @@ export function Login() {
               </div>
 
               {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="relative overflow-hidden rounded-xl"
-                >
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden rounded-xl">
                   <div className="absolute inset-0 bg-gradient-to-br from-red-500/20 via-red-400/10 to-transparent"></div>
                   <div className="absolute inset-0 backdrop-blur-sm border border-red-400/30 rounded-xl"></div>
                   <div className="relative z-10 p-3 flex items-center gap-2">
@@ -141,11 +131,7 @@ export function Login() {
                 </motion.div>
               )}
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full relative overflow-hidden rounded-xl py-3 px-4 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button type="submit" disabled={loading} className="w-full relative overflow-hidden rounded-xl py-3 px-4 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
                 <div className="absolute inset-0 bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-400"></div>
                 <div className="absolute inset-0 bg-gradient-to-br from-transparent via-yellow-400/20 to-yellow-600/30"></div>
                 <div className="relative z-10 text-black font-medium">
@@ -163,6 +149,12 @@ export function Login() {
                 </div>
               </button>
             </form>
+
+            <div className="mt-3 text-right">
+              <a href="/forgot-password" className="text-sm text-yellow-300 hover:text-yellow-200">
+                Forgot password?
+              </a>
+            </div>
 
             <div className="mt-6 text-center">
               <p className="text-gray-300">

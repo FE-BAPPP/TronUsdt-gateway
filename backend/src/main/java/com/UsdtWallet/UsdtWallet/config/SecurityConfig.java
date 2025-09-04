@@ -34,6 +34,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/check-username").permitAll()
                         .requestMatchers("/api/auth/check-email").permitAll()
                         .requestMatchers("/api/auth/create-admin").permitAll() // Allow admin creation
+                        .requestMatchers("/api/auth/forgot-password").permitAll() // added
+                        .requestMatchers("/api/auth/reset-password").permitAll() // added
                         .requestMatchers("/api/admin/wallet/**").permitAll() // Temporary for testing
                         .requestMatchers("/api/test/**").permitAll() // Allow all test endpoints
                         .requestMatchers("/api/dev/**").permitAll() // Allow dev endpoints for development

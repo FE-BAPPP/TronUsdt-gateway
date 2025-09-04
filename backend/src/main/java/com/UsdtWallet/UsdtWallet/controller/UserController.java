@@ -16,6 +16,14 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+import com.UsdtWallet.UsdtWallet.service.AuthTokenService;
+import com.UsdtWallet.UsdtWallet.security.JwtTokenProvider;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.util.StringUtils;
+import jakarta.servlet.http.HttpServletRequest;
+import com.UsdtWallet.UsdtWallet.service.EmailService;
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -23,6 +31,13 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
+    private final AuthTokenService authTokenService;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
+
+    @Value("${spring.security.jwt.expiration:86400000}")
+    private Long jwtExpirationInMs; // added
 
     /**
      * User registration with auto wallet assignment
@@ -326,6 +341,133 @@ public class UserController {
                     .message("Failed to create admin account: " + (e.getMessage() != null ? e.getMessage() : "Unknown error"))
                     .build());
         }
+    }
+
+    /**
+     * User logout: blacklist current JWT until expiry
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> logout(HttpServletRequest request) {
+        try {
+            String bearer = request.getHeader("Authorization");
+            if (!StringUtils.hasText(bearer) || !bearer.startsWith("Bearer ")) {
+                return ResponseEntity.badRequest().body(ApiResponse.<Map<String,Object>>builder().success(false).message("Missing token").build());
+            }
+            String token = bearer.substring(7);
+            authTokenService.blacklistToken(token, jwtTokenProvider.getExpirationTime());
+            return ResponseEntity.ok(ApiResponse.success(Map.of("loggedOut", true)));
+        } catch (Exception e) {
+            log.error("Logout failed", e);
+            return ResponseEntity.badRequest().body(ApiResponse.<Map<String,Object>>builder().success(false).message("Logout failed: " + e.getMessage()).build());
+        }
+    }
+
+    /**
+     * Forgot password: issue reset token (dev: return token in response)
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> forgotPassword(@RequestBody Map<String, String> body,
+                                                                           HttpServletRequest request) {
+        try {
+            String email = body.get("email");
+            if (!StringUtils.hasText(email)) {
+                return ResponseEntity.badRequest().body(ApiResponse.<Map<String,Object>>builder().success(false).message("Email is required").build());
+            }
+
+            // Throttle per email and IP
+            String ip = request.getHeader("X-Forwarded-For");
+            if (ip != null && ip.contains(",")) {
+                ip = ip.split(",")[0].trim();
+            }
+            if (!StringUtils.hasText(ip)) {
+                ip = request.getRemoteAddr();
+            }
+            boolean allowed = authTokenService.acquireResetThrottle(email, ip);
+            if (!allowed) {
+                // Always generic response (non-enumerable)
+                try { Thread.sleep(150); } catch (InterruptedException ignored) {}
+                return ResponseEntity.ok(ApiResponse.success(Map.of(
+                    "requested", true,
+                    "message", "If the email exists, we've sent reset instructions"
+                )));
+            }
+
+            // Avoid user enumeration
+            boolean exists = false;
+            try { exists = userService.existsByEmail(email); } catch (Exception ignored) {}
+
+            if (exists) {
+                try {
+                    User user = userService.getUserByEmail(email);
+                    String token = authTokenService.createPasswordResetTokenReplacingPrevious(
+                        user.getId().toString(), java.time.Duration.ofMinutes(15));
+                    emailService.sendPasswordResetEmail(email, token);
+                } catch (Exception sendEx) {
+                    log.warn("Failed to process password reset for {}: {}", email, sendEx.getMessage());
+                }
+            } else {
+                try { Thread.sleep(120); } catch (InterruptedException ignored) {}
+            }
+
+            return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "requested", true,
+                "message", "If the email exists, we've sent reset instructions"
+            )));
+        } catch (Exception e) {
+            log.error("Forgot password failed", e);
+            return ResponseEntity.badRequest().body(ApiResponse.<Map<String,Object>>builder().success(false).message("Forgot password failed").build());
+        }
+    }
+
+    /**
+     * Reset password with token
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> resetPassword(@RequestBody Map<String, String> body) {
+        try {
+            String token = body.get("token");
+            String newPassword = body.get("newPassword");
+            if (!StringUtils.hasText(token) || !StringUtils.hasText(newPassword)) {
+                return ResponseEntity.badRequest().body(ApiResponse.<Map<String,Object>>builder().success(false).message("Token and newPassword are required").build());
+            }
+            String userId = authTokenService.validateResetToken(token);
+            if (!StringUtils.hasText(userId)) {
+                return ResponseEntity.badRequest().body(ApiResponse.<Map<String,Object>>builder().success(false).message("Invalid or expired token").build());
+            }
+            boolean updated = userService.updatePassword(java.util.UUID.fromString(userId), passwordEncoder.encode(newPassword));
+            if (updated) {
+                authTokenService.consumeResetToken(token);
+                return ResponseEntity.ok(ApiResponse.success(Map.of("reset", true)));
+            }
+            return ResponseEntity.badRequest().body(ApiResponse.<Map<String,Object>>builder().success(false).message("Failed to reset password").build());
+        } catch (Exception e) {
+            log.error("Reset password failed", e);
+            return ResponseEntity.badRequest().body(ApiResponse.<Map<String,Object>>builder().success(false).message("Reset password failed: " + e.getMessage()).build());
+        }
+    }
+
+    /**
+     * Update profile fields
+     */
+    @PutMapping("/profile")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> updateProfile(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @RequestBody UpdateProfileRequest req) {
+        try {
+            Map<String, Object> updated = userService.updateProfile(userPrincipal.getId(), req);
+            return ResponseEntity.ok(ApiResponse.success("Profile updated", updated));
+        } catch (Exception e) {
+            log.error("Update profile failed", e);
+            return ResponseEntity.badRequest().body(ApiResponse.<Map<String,Object>>builder().success(false).message("Update profile failed: " + e.getMessage()).build());
+        }
+    }
+
+    public static class UpdateProfileRequest {
+        public String fullName;
+        public String phone;
+        public String avatar;
+        public String description;
+        public String email;
     }
 
     // DTO class for admin creation request

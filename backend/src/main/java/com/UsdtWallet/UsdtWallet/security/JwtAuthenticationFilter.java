@@ -17,7 +17,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
+
+import com.UsdtWallet.UsdtWallet.service.AuthTokenService;
+import com.UsdtWallet.UsdtWallet.repository.UserRepository;
+import com.UsdtWallet.UsdtWallet.model.entity.User;
 
 @Component
 @RequiredArgsConstructor
@@ -26,6 +31,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final UserDetailsService userDetailsService;
+    private final AuthTokenService authTokenService;
+    private final UserRepository userRepository;
 
     // Public endpoints that should skip JWT authentication
     private static final List<String> PUBLIC_PATHS = Arrays.asList(
@@ -34,6 +41,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         "/api/auth/check-username",
         "/api/auth/check-email",
         "/api/auth/create-admin",
+        "/api/auth/forgot-password",
+        "/api/auth/reset-password",
         "/api/admin/wallet/",
         "/api/test/",
         "/actuator/",
@@ -63,9 +72,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             log.debug("JWT token found: {}", jwt != null ? "Yes" : "No");
 
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
+                // Check blacklist (logout)
+                if (authTokenService.isBlacklisted(jwt)) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 String username = tokenProvider.getUsernameFromToken(jwt);
-                log.debug("JWT valid for username: {}", username);
-                log.debug("Extracted username: {}", username);
+
+                // Enforce password reset logout
+                try {
+                    User userEntity = userRepository.findByUsername(username).orElse(null);
+                    if (userEntity != null && userEntity.getPasswordChangedAt() != null) {
+                        Date iat = tokenProvider.getIssuedAtDate(jwt);
+                        if (iat == null || iat.toInstant().isBefore(userEntity.getPasswordChangedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())) {
+                            // Old token; don't authenticate
+                            filterChain.doFilter(request, response);
+                            return;
+                        }
+                    }
+                } catch (Exception ignored) { }
 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                 log.debug("UserDetails loaded for: {}", userDetails.getUsername());

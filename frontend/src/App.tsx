@@ -12,6 +12,8 @@ import { AdminTrackingPage } from "./pages/Admin/AdminTrackingPage";
 import { AdminWithdrawalsPage } from "./pages/Admin/AdminWithdrawalsPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthContext, useAuthProvider } from "./hooks/useAuth";
+import { ForgotPassword } from "./pages/Auth/ForgotPassword";
+import { ResetPassword } from "./pages/Auth/ResetPassword";
 
 function AppRoutes() {
   return (
@@ -19,7 +21,9 @@ function AppRoutes() {
       {/* Public Routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+
       {/* Protected User Routes */}
       <Route path="/user/dashboard" element={
         <ProtectedRoute requiredRole="USER">

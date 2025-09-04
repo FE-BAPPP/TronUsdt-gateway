@@ -479,6 +479,37 @@ public class UsdtSweepService {
 
                                 updateCorrespondingWalletTransaction(sweep.getSweepTxHash());
 
+                                // Credit points ONLY after sweep confirmed
+                                try {
+                                    var optDeposit = walletTransactionRepository.findBySweepTxHash(sweep.getSweepTxHash());
+                                    if (optDeposit.isPresent()) {
+                                        WalletTransaction deposit = optDeposit.get();
+                                        if (deposit.getPointsCredited() == null) {
+                                            boolean credited = pointsService.creditPointsForDeposit(
+                                                deposit.getUserId(),
+                                                deposit.getAmount(),
+                                                String.valueOf(deposit.getId()),
+                                                deposit.getAmount()
+                                            );
+                                            if (credited) {
+                                                deposit.setPointsCredited(deposit.getAmount());
+                                                deposit.setPointsCreditedAt(LocalDateTime.now());
+                                                // Mark deposit fully completed after points credited
+                                                deposit.setStatus(WalletTransaction.TransactionStatus.COMPLETED);
+                                                walletTransactionRepository.save(deposit);
+                                                log.info("🎁 Points credited after sweep confirmation: user={}, amount={} points, depositId={}",
+                                                    deposit.getUserId(), deposit.getAmount(), deposit.getId());
+                                            } else {
+                                                log.warn("Points already credited or failed for depositId={} (tx={})", deposit.getId(), deposit.getTxHash());
+                                            }
+                                        }
+                                    } else {
+                                        log.warn("No deposit transaction found for sweep txHash {} to credit points", sweep.getSweepTxHash());
+                                    }
+                                } catch (Exception ce) {
+                                    log.error("Failed to credit points after sweep confirmation tx={} : {}", sweep.getSweepTxHash(), ce.getMessage(), ce);
+                                }
+
                             } else if ("FAILED".equals(result) || (receipt != null && "FAILED".equals(((Map<?, ?>)receipt).get("result")))) {
                                 sweep.setStatus(TokenSweep.SweepStatus.FAILED);
                                 sweep.setErrorMessage("Transaction failed on blockchain - Result: " + result);
@@ -645,35 +676,9 @@ public class UsdtSweepService {
                 SweepResultDto.SweepTransactionDto result = sweepSingleDeposit(depositTransaction);
 
                 if ("SUCCESS".equals(result.getStatus())) {
-                    // Update deposit status to CONFIRMED after successful sweep
-                    depositTransaction.setStatus(WalletTransaction.TransactionStatus.CONFIRMED);
-
-                    // Credit points ONLY after successful sweep
-                    BigDecimal pointsToCredit = depositTransaction.getAmount();
-                    log.info("💳 Attempting to credit {} points to user {} for successful sweep",
-                        pointsToCredit, depositTransaction.getUserId());
-
-                    boolean pointsSuccess = pointsService.creditPointsForDeposit(
-                        depositTransaction.getUserId(),
-                        pointsToCredit,
-                        String.valueOf(depositTransaction.getId()),
-                        depositTransaction.getAmount()
-                    );
-
-                    if (pointsSuccess) {
-                        depositTransaction.setPointsCredited(pointsToCredit);
-                        depositTransaction.setPointsCreditedAt(LocalDateTime.now());
-
-                        log.info("✅ Immediate sweep + points credit successful: {} USDT swept from {} (TX: {}) → {} points credited to user {}",
-                            result.getAmount(), address, result.getTxHash(), pointsToCredit, depositTransaction.getUserId());
-                    } else {
-                        log.error("❌ Sweep successful but points credit failed for deposit {} - User: {}, Amount: {} points",
-                            depositTransaction.getTxHash(), depositTransaction.getUserId(), pointsToCredit);
-                    }
-
-                    // Save updated transaction
-                    walletTransactionRepository.save(depositTransaction);
-
+                    // Do NOT credit points here; wait for blockchain confirmation
+                    log.info("✅ Sweep transaction broadcasted for deposit {} (txHash={}). Waiting for confirmation before crediting points.",
+                        depositTransaction.getId(), result.getTxHash());
                 } else {
                     log.warn("⚠️ Immediate sweep failed for {}: {}", address, result.getErrorMessage());
                     // Keep transaction status as PENDING for retry later
@@ -745,9 +750,9 @@ public class UsdtSweepService {
 
                                         if (hasRealErrors) {
                                             log.debug("❌ ContractResult has real errors: {}", contractList);
-                                        } else {
+                                          } else {
                                             log.debug("✅ ContractResult only has null/empty items - SUCCESS");
-                                        }
+                                          }
                                     }
                                 } else if (contractResult != null) {
                                     String contractStr = contractResult.toString().trim();

@@ -23,5 +23,6 @@ public class WithdrawalRequest {
     @Pattern(regexp = "^[0-9]{6}$", message = "Invalid 2FA code format")
     private String twoFactorCode;
 
-    private String password; // For additional security verification
+    @NotBlank(message = "Password is required for withdrawal")
+    private String password;
 }

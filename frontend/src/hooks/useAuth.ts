@@ -142,6 +142,8 @@ export function useAuthProvider(): AuthContextType {
 
   const logout = () => {
     console.log('🚪 Logging out...');
+    // Fire-and-forget backend logout to blacklist token
+    userApi.logout().catch(() => {});
     authHelper.logoutAll();
     setUser(null);
     setRole(null);

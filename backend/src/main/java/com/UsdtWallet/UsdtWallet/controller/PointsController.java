@@ -17,6 +17,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.security.crypto.password.PasswordEncoder; // added
+import com.UsdtWallet.UsdtWallet.repository.UserRepository; // added
+
 @RestController
 @RequestMapping("/api/points")
 @RequiredArgsConstructor
@@ -24,6 +27,8 @@ import java.util.Map;
 public class PointsController {
 
     private final PointsService pointsService;
+    private final UserRepository userRepository; // added
+    private final PasswordEncoder passwordEncoder; // added
 
     /**
      * Get current user's points balance
@@ -135,6 +140,16 @@ public class PointsController {
         try {
             String fromUserId = userPrincipal.getId().toString(); // Convert UUID to String
 
+            // Verify password like Binance
+            var user = userRepository.findById(userPrincipal.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+            if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+                return ResponseEntity.ok(Map.of(
+                    "success", false,
+                    "message", "Invalid password"
+                ));
+            }
+
             // Validate sufficient balance
             if (!pointsService.hasSufficientBalance(fromUserId, request.getAmount())) {
                 return ResponseEntity.ok(Map.of(
@@ -200,6 +215,9 @@ public class PointsController {
 
         private String description;
 
+        @NotBlank(message = "Password is required")
+        private String password; // added for Binance-like confirmation
+
         // Getters and setters
         public String getToUserId() { return toUserId; }
         public void setToUserId(String toUserId) { this.toUserId = toUserId; }
@@ -209,5 +227,8 @@ public class PointsController {
 
         public String getDescription() { return description; }
         public void setDescription(String description) { this.description = description; }
+
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
     }
 }
