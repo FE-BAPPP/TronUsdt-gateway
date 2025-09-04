@@ -85,32 +85,6 @@ public class AdminDashboardController {
     }
 
     /**
-     * withdrawal management
-     */
-    @GetMapping("/withdrawals")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getWithdrawalManagement(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
-        try {
-            Map<String, Object> withdrawalData = Map.of(
-                "processingStats", withdrawalProcessorService.getProcessingStats(),
-                "queueStats", withdrawalQueueService.getQueueStats(),
-                "recentWithdrawals", getRecentWithdrawals(page, size)
-            );
-
-            return ResponseEntity.ok(ApiResponse.success(withdrawalData));
-
-        } catch (Exception e) {
-            log.error("Error getting withdrawal management data", e);
-            return ResponseEntity.badRequest()
-                .body(ApiResponse.<Map<String, Object>>builder()
-                    .success(false)
-                    .message("Failed to get withdrawal data: " + e.getMessage())
-                    .build());
-        }
-    }
-
-    /**
      * system monitoring data
      */
     @GetMapping("/monitoring")
@@ -129,93 +103,6 @@ public class AdminDashboardController {
         }
     }
 
-
-    /**
-     * Force retry failed withdrawals
-     */
-    @PostMapping("/withdrawals/retry-failed")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> retryFailedWithdrawals() {
-        try {
-            // This will trigger the retry process
-            systemMonitoringService.triggerFailedWithdrawalRetry();
-
-            Map<String, Object> result = Map.of(
-                "message", "Failed withdrawal retry process triggered",
-                "timestamp", LocalDateTime.now()
-            );
-
-            return ResponseEntity.ok(ApiResponse.success(result));
-
-        } catch (Exception e) {
-            log.error("Error retrying failed withdrawals", e);
-            return ResponseEntity.badRequest()
-                .body(ApiResponse.<Map<String, Object>>builder()
-                    .success(false)
-                    .message("Failed to retry withdrawals: " + e.getMessage())
-                    .build());
-        }
-    }
-
-    /**
-     * Emergency stop withdrawals
-     */
-    @PostMapping("/withdrawals/emergency-stop")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> emergencyStopWithdrawals() {
-        try {
-            systemMonitoringService.emergencyStopWithdrawals();
-
-            Map<String, Object> result = Map.of(
-                "message", "Emergency stop activated - all withdrawal processing paused",
-                "timestamp", LocalDateTime.now(),
-                "action", "EMERGENCY_STOP"
-            );
-
-            return ResponseEntity.ok(ApiResponse.success(result));
-
-        } catch (Exception e) {
-            log.error("Error during emergency stop", e);
-            return ResponseEntity.badRequest()
-                .body(ApiResponse.<Map<String, Object>>builder()
-                    .success(false)
-                    .message("Failed to emergency stop: " + e.getMessage())
-                    .build());
-        }
-    }
-
-    /**
-     * Resume withdrawal processing
-     */
-    @PostMapping("/withdrawals/resume")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> resumeWithdrawals() {
-        try {
-            systemMonitoringService.resumeWithdrawals();
-
-            Map<String, Object> result = Map.of(
-                "message", "Withdrawal processing resumed",
-                "timestamp", LocalDateTime.now(),
-                "action", "RESUME_WITHDRAWALS"
-            );
-
-            return ResponseEntity.ok(ApiResponse.success(result));
-
-        } catch (Exception e) {
-            log.error("Error resuming withdrawals", e);
-            return ResponseEntity.badRequest()
-                .body(ApiResponse.<Map<String, Object>>builder()
-                    .success(false)
-                    .message("Failed to resume withdrawals: " + e.getMessage())
-                    .build());
-        }
-    }
-
-    private Object getRecentWithdrawals(int page, int size) {
-        // This would be implemented to get recent withdrawals from the repository
-        return Map.of(
-            "message", "Recent withdrawals data would be here",
-            "page", page,
-            "size", size
-        );
-    }
     /**
      * reset block scanner
      */
