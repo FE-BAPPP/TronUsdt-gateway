@@ -190,7 +190,7 @@ class UserApiClient extends BaseApiClient {
     return this.request<any>('/api/points/stats');
   }
 
-  // 3. Deposits APIs
+  // Deposits APIs
   async getDepositHistory(params: {
     page?: number;
     size?: number;
@@ -209,13 +209,24 @@ class UserApiClient extends BaseApiClient {
     return this.request<any>(`/api/deposits/status/${txHash}`);
   }
 
-  // 4. Withdrawals APIs
-  async createWithdrawal(data: { 
+  // Withdrawals APIs
+  async createWithdrawal(data: {
     amount: number; 
     toAddress: string; 
-    password: string;
   }) {
+    // create request (PENDING, awaiting confirm)
     return this.request<any>('/api/withdrawal/request', {
+      method: 'POST',
+      body: JSON.stringify({ amount: data.amount, toAddress: data.toAddress }),
+    });
+  }
+
+  async confirmWithdrawal(data: {
+    withdrawalId: number | string;
+    password: string;
+    twoFactorCode?: string;
+  }) {
+    return this.request<any>('/api/withdrawal/confirm', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -239,7 +250,7 @@ class UserApiClient extends BaseApiClient {
     });
   }
 
-  // 5. Transactions APIs
+  // Transactions APIs
   async getAllTransactions(params: {
     page?: number;
     size?: number;
@@ -295,7 +306,7 @@ class AdminApiClient extends BaseApiClient {
     return response;
   }
 
-  // 8. Admin Endpoints
+  // Admin Endpoints
   async getDashboardOverview() {
     return this.request<any>('/api/admin/dashboard/overview');
   }

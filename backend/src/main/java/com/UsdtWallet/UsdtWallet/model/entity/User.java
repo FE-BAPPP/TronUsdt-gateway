@@ -76,6 +76,31 @@ public class User {
     private LocalDateTime passwordChangedAt;
     private LocalDateTime withdrawalsDisabledUntil;
 
+    // 2FA (Google Authenticator)
+    @Column(name = "two_factor_enabled")
+    @Builder.Default
+    private Boolean twoFactorEnabled = false;
+
+    @Column(name = "two_factor_secret")
+    private String twoFactorSecret;
+
+    @Column(name = "two_factor_temp_secret")
+    private String twoFactorTempSecret;
+
+    @Column(name = "two_factor_enabled_at")
+    private LocalDateTime twoFactorEnabledAt;
+
+    @PrePersist
+    @PreUpdate
+    private void ensureDefaults() {
+        if (twoFactorEnabled == null) twoFactorEnabled = false;
+    }
+
+    // Backward-compatible accessor for code using boolean-style getter
+    public boolean isTwoFactorEnabled() {
+        return Boolean.TRUE.equals(this.twoFactorEnabled);
+    }
+
     public enum Gender {
         MALE, FEMALE, UNKNOWN;
     }

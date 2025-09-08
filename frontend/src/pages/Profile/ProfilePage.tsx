@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { useAuth } from "../../hooks/useAuth"
 import { userApi } from "../../services/api"
+import { QRCodeCanvas } from "qrcode.react"
 import {
   User,
   Edit3,
@@ -29,6 +30,29 @@ export function ProfilePage() {
     email: user?.email || "",
   })
 
+  // 2FA state
+  const [twoFAEnabled, setTwoFAEnabled] = useState<boolean>(false)
+  const [setupModal, setSetupModal] = useState(false)
+  const [otpauthUrl, setOtpauthUrl] = useState<string>("")
+  const [setupCode, setSetupCode] = useState("")
+  const [disableModal, setDisableModal] = useState(false)
+  const [disablePwd, setDisablePwd] = useState("")
+  const [disableCode, setDisableCode] = useState("")
+  const [secMsg, setSecMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    // fetch profile to get 2FA flag
+    ;(async () => {
+      try {
+        const res = await userApi.getProfile()
+        if (res.success) {
+          const p: any = res.data || {}
+          setTwoFAEnabled(!!p.twoFactorEnabled)
+        }
+      } catch {}
+    })()
+  }, [])
+
   const handleSave = async () => {
     try {
       const res = await userApi.updateProfile({
@@ -47,6 +71,51 @@ export function ProfilePage() {
     if (confirm("Are you sure you want to logout?")) {
       logout()
     }
+  }
+
+  const startSetup2FA = async () => {
+    setSecMsg(null)
+    const r = await userApi.startTwoFactorSetup()
+    if (!r.success) {
+      setSecMsg(r.message || "Failed to start 2FA setup")
+      return
+    }
+    const data: any = r.data || {}
+    setOtpauthUrl(data.otpauthUrl || "")
+    setSetupCode("")
+    setSetupModal(true)
+  }
+
+  const confirmEnable2FA = async () => {
+    if (!setupCode || setupCode.trim().length !== 6) {
+      setSecMsg("Enter 6-digit code from Google Authenticator")
+      return
+    }
+    const r = await userApi.enableTwoFactor(setupCode.trim())
+    if (!r.success) {
+      setSecMsg(r.message || "Failed to enable 2FA")
+      return
+    }
+    setTwoFAEnabled(true)
+    setSetupModal(false)
+    alert("Two-factor authentication enabled")
+  }
+
+  const confirmDisable2FA = async () => {
+    if (!disablePwd) {
+      setSecMsg("Password is required to disable 2FA")
+      return
+    }
+    const r = await userApi.disableTwoFactor(disablePwd, disableCode?.trim() || undefined)
+    if (!r.success) {
+      setSecMsg(r.message || "Failed to disable 2FA")
+      return
+    }
+    setTwoFAEnabled(false)
+    setDisableModal(false)
+    setDisablePwd("")
+    setDisableCode("")
+    alert("Two-factor authentication disabled")
   }
 
   return (
@@ -254,18 +323,33 @@ export function ProfilePage() {
               </div>
             </button>
 
-            <button className="w-full p-4 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-left transition-all duration-300 backdrop-blur-sm">
+            <div className="w-full p-4 bg-white/10 border border-white/20 rounded-lg backdrop-blur-sm">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <Smartphone className="w-5 h-5 text-blue-400" />
                   <div>
                     <h3 className="text-white font-medium">Two-Factor Authentication</h3>
-                    <p className="text-gray-400 text-sm">Enable 2FA for enhanced security</p>
+                    <p className="text-gray-400 text-sm">{twoFAEnabled ? 'Enabled' : 'Disabled'}</p>
                   </div>
                 </div>
-                <span className="text-gray-400">→</span>
+                {twoFAEnabled ? (
+                  <button
+                    onClick={() => { setDisableModal(true); setSecMsg(null); }}
+                    className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 rounded-lg"
+                  >
+                    Disable
+                  </button>
+                ) : (
+                  <button
+                    onClick={startSetup2FA}
+                    className="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-400 rounded-lg"
+                  >
+                    Enable
+                  </button>
+                )}
               </div>
-            </button>
+              {secMsg && <div className="text-sm text-red-400 mt-2">{secMsg}</div>}
+            </div>
           </div>
         </div>
       </motion.div>
@@ -302,6 +386,73 @@ export function ProfilePage() {
           </p>
         </div>
       </motion.div>
+
+      {/* 2FA Setup Modal */}
+      {setupModal && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md relative overflow-hidden rounded-2xl">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-white/10 to-transparent"></div>
+            <div className="absolute inset-0 backdrop-blur-xl border border-white/20 rounded-2xl"></div>
+            <div className="relative z-10 p-6">
+              <h3 className="text-white text-lg font-semibold mb-2">Enable Two-Factor Authentication</h3>
+              <p className="text-gray-400 text-sm mb-4">Scan the QR with Google Authenticator, then enter the 6-digit code.</p>
+              <div className="bg-white p-3 rounded-xl mb-3 w-fit mx-auto">
+                {otpauthUrl ? <QRCodeCanvas value={otpauthUrl} size={170} includeMargin /> : null}
+              </div>
+              <input
+                type="text"
+                value={setupCode}
+                onChange={(e) => setSetupCode(e.target.value)}
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400/50"
+                placeholder="Enter 6-digit code"
+                maxLength={6}
+                inputMode="numeric"
+                pattern="[0-9]*"
+              />
+              <div className="flex justify-end gap-2 mt-4">
+                <button onClick={() => setSetupModal(false)} className="px-4 py-2 text-gray-300 hover:text-white">Cancel</button>
+                <button onClick={confirmEnable2FA} className="px-4 py-2 bg-yellow-500 text-black rounded-lg">Enable</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2FA Disable Modal */}
+      {disableModal && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md relative overflow-hidden rounded-2xl">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-white/10 to-transparent"></div>
+            <div className="absolute inset-0 backdrop-blur-xl border border-white/20 rounded-2xl"></div>
+            <div className="relative z-10 p-6">
+              <h3 className="text-white text-lg font-semibold mb-2">Disable Two-Factor Authentication</h3>
+              <p className="text-gray-400 text-sm mb-4">Enter your password and, if requested, a 2FA code.</p>
+              <input
+                type="password"
+                value={disablePwd}
+                onChange={(e) => setDisablePwd(e.target.value)}
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400/50 mb-3"
+                placeholder="Password"
+              />
+              <input
+                type="text"
+                value={disableCode}
+                onChange={(e) => setDisableCode(e.target.value)}
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400/50"
+                placeholder="2FA code (optional)"
+                maxLength={6}
+                inputMode="numeric"
+                pattern="[0-9]*"
+              />
+              {secMsg && <div className="text-sm text-red-400 mt-2">{secMsg}</div>}
+              <div className="flex justify-end gap-2 mt-4">
+                <button onClick={() => setDisableModal(false)} className="px-4 py-2 text-gray-300 hover:text-white">Cancel</button>
+                <button onClick={confirmDisable2FA} className="px-4 py-2 bg-red-500 text-black rounded-lg">Disable</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

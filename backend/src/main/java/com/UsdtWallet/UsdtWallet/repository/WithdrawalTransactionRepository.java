@@ -97,4 +97,10 @@ public interface WithdrawalTransactionRepository extends JpaRepository<Withdrawa
     Page<WithdrawalTransaction> findByStatusOrderByUpdatedAtDesc(
             WithdrawalTransaction.WithdrawalStatus status,
             Pageable pageable);
+
+    // Auto-cancel helpers
+    List<WithdrawalTransaction> findByStatusAndCreatedAtBefore(
+            WithdrawalTransaction.WithdrawalStatus status,
+            LocalDateTime createdAtBefore
+    );
 }

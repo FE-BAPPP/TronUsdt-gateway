@@ -31,19 +31,23 @@ public class PointsController {
     private final PasswordEncoder passwordEncoder; // added
 
     /**
-     * Get current user's points balance
+     * Get current user's points balance (includes available and locked)
      */
     @GetMapping("/balance")
     public ResponseEntity<Map<String, Object>> getBalance(@AuthenticationPrincipal UserPrincipal userPrincipal) {
         try {
-            String userId = userPrincipal.getId().toString(); // Convert UUID to String
-            BigDecimal balance = pointsService.getCurrentBalance(userId);
+            String userId = userPrincipal.getId().toString();
+            java.math.BigDecimal balance = pointsService.getCurrentBalance(userId);
+            java.math.BigDecimal available = pointsService.getAvailableBalance(userId);
+            java.math.BigDecimal locked = balance.subtract(available).max(java.math.BigDecimal.ZERO);
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "data", Map.of(
                     "userId", userId,
                     "balance", balance,
+                    "available", available,
+                    "locked", locked,
                     "currency", "POINTS"
                 )
             ));

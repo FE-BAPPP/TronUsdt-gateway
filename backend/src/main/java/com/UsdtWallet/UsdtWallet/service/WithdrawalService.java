@@ -5,6 +5,8 @@ import com.UsdtWallet.UsdtWallet.model.entity.WithdrawalTransaction;
 import com.UsdtWallet.UsdtWallet.model.entity.User;
 import com.UsdtWallet.UsdtWallet.repository.WithdrawalTransactionRepository;
 import com.UsdtWallet.UsdtWallet.repository.UserRepository;
+import com.UsdtWallet.UsdtWallet.model.dto.request.WithdrawalConfirmRequest;
+import com.UsdtWallet.UsdtWallet.service.TwoFactorAuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -33,6 +34,7 @@ public class WithdrawalService {
     private final PointsService pointsService;
     private final PasswordEncoder passwordEncoder;
     private final WithdrawalQueueService withdrawalQueueService;
+    private final TwoFactorAuthService twoFactorAuthService;
 
     @Value("${withdrawal.fee.fixed:1.0}")
     private BigDecimal fixedFee;
@@ -49,11 +51,14 @@ public class WithdrawalService {
     @Value("${withdrawal.daily.limit:50000.0}")
     private BigDecimal dailyLimit;
 
+    @Value("${withdrawal.queue.delay-seconds:60}")
+    private long confirmQueueDelaySeconds;
+
     /**
-     * Create withdrawal request
+     * create record in PENDING status without deducting balance yet
      */
     @Transactional
-    public WithdrawalTransaction createWithdrawal(UUID userId, WithdrawalRequest request) {
+    public WithdrawalTransaction createWithdrawal(UUID userId, com.UsdtWallet.UsdtWallet.model.dto.request.WithdrawalCreateRequest request) {
         log.info("Creating withdrawal for user: {}, amount: {}", userId, request.getAmount());
 
         // Validate user
@@ -65,25 +70,17 @@ public class WithdrawalService {
             throw new RuntimeException("Withdrawals are temporarily disabled until " + user.getWithdrawalsDisabledUntil() + " due to a recent security change.");
         }
 
-        // Validate password if provided
-        if (request.getPassword() != null && !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid password");
-        }
-
-        // Validate withdrawal limits
+        // Validate withdrawal limits (pre-check)
         validateWithdrawalLimits(userId, request.getAmount());
 
         // Calculate fee and net amount
         BigDecimal fee = calculateFee(request.getAmount());
         BigDecimal netAmount = request.getAmount().subtract(fee);
-
-        // Check user balance
-        BigDecimal userBalance = pointsService.getCurrentBalance(userId.toString());
-        if (userBalance.compareTo(request.getAmount()) < 0) {
-            throw new RuntimeException("Insufficient balance. Available: " + userBalance + " USDT");
+        if (netAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Amount after fee must be positive");
         }
 
-        // Create withdrawal transaction
+        // Create withdrawal transaction in PENDING (awaiting user confirm)
         WithdrawalTransaction withdrawal = WithdrawalTransaction.builder()
             .userId(userId)
             .toAddress(request.getToAddress())
@@ -95,17 +92,78 @@ public class WithdrawalService {
 
         withdrawal = withdrawalRepository.save(withdrawal);
 
-        // Deduct amount from user balance
-        pointsService.deductPoints(userId.toString(), request.getAmount(),
-            "Withdrawal to " + request.getToAddress());
-
-        // Add to processing queue
-        withdrawalQueueService.addToQueue(withdrawal.getId());
-
-        log.info("Withdrawal created successfully: ID={}, Amount={}, Fee={}",
+        log.info("Withdrawal PENDING (awaiting confirm): ID={}, Amount={}, Fee={}",
             withdrawal.getId(), withdrawal.getAmount(), withdrawal.getFee());
 
         return withdrawal;
+    }
+
+    /**
+     * verify password and 2FA (if enabled), deduct balance, mark processedAt, enqueue
+     */
+    @Transactional
+    public Map<String, Object> confirmWithdrawal(UUID userId, WithdrawalConfirmRequest req) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+        WithdrawalTransaction withdrawal = withdrawalRepository.findByIdAndUserId(req.getWithdrawalId(), userId)
+            .orElseThrow(() -> new RuntimeException("Withdrawal not found"));
+
+        if (withdrawal.getStatus() != WithdrawalTransaction.WithdrawalStatus.PENDING || withdrawal.getProcessedAt() != null) {
+            throw new RuntimeException("Withdrawal already processed or not awaiting confirmation");
+        }
+
+        // Verify password
+        if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
+            throw new RuntimeException("Invalid password");
+        }
+
+        // If 2FA enabled, verify code
+        if (user.isTwoFactorEnabled()) {
+            if (req.getTwoFactorCode() == null || !req.getTwoFactorCode().matches("^[0-9]{6}$")) {
+                throw new RuntimeException("2FA code is required");
+            }
+            String secret = user.getTwoFactorSecret();
+            try {
+                int code = Integer.parseInt(req.getTwoFactorCode());
+                boolean ok = twoFactorAuthService.verifyCode(secret, code);
+                if (!ok) throw new RuntimeException("Invalid 2FA code");
+            } catch (NumberFormatException e) {
+                throw new RuntimeException("Invalid 2FA code");
+            }
+        }
+
+        // Re-validate limits and check available balance (no deduction yet)
+        validateWithdrawalLimits(userId, withdrawal.getAmount());
+        BigDecimal available = pointsService.getAvailableBalance(userId.toString());
+        if (available.compareTo(withdrawal.getAmount()) < 0) {
+            throw new RuntimeException("Insufficient available balance. Available: " + available + " USDT");
+        }
+
+        // Lock points for this withdrawal
+        pointsService.lockPointsForWithdrawal(userId.toString(), withdrawal.getAmount(), withdrawal.getId().toString());
+
+        // Mark user-confirmed and enqueue with optional delay to allow cancel window
+        withdrawal.setProcessedAt(LocalDateTime.now());
+        withdrawalRepository.save(withdrawal);
+        if (confirmQueueDelaySeconds > 0) {
+            withdrawalQueueService.addToQueueWithDelay(withdrawal.getId(), (int) confirmQueueDelaySeconds);
+        } else {
+            withdrawalQueueService.addToQueue(withdrawal.getId());
+        }
+
+        log.info("Withdrawal CONFIRMED (locked only) & ENQUEUED with delay {}s: ID={}, Amount={}",
+            confirmQueueDelaySeconds, withdrawal.getId(), withdrawal.getAmount());
+
+        return Map.of(
+            "withdrawalId", withdrawal.getId(),
+            "status", withdrawal.getStatus(),
+            "amount", withdrawal.getAmount(),
+            "fee", withdrawal.getFee(),
+            "netAmount", withdrawal.getNetAmount(),
+            "message", "Withdrawal confirmed and queued. You can still cancel while status is PENDING until processing begins.",
+            "cancelWindowSeconds", confirmQueueDelaySeconds
+        );
     }
 
     /**
@@ -146,18 +204,35 @@ public class WithdrawalService {
         WithdrawalTransaction withdrawal = withdrawalRepository.findByIdAndUserId(withdrawalId, userId)
             .orElseThrow(() -> new RuntimeException("Withdrawal not found"));
 
-        if (!withdrawal.canBeCancelled()) {
-            throw new RuntimeException("Cannot cancel withdrawal in current status: " + withdrawal.getStatus());
+        // Allow cancel while:
+        // - Status is still PENDING (not moved to PROCESSING/BROADCASTING/SENT)
+        // - No txHash (not broadcast yet)
+        // - Either not processed yet, or within the cancel window after processedAt
+        boolean isPending = withdrawal.getStatus() == WithdrawalTransaction.WithdrawalStatus.PENDING;
+        boolean noTx = withdrawal.getTxHash() == null || withdrawal.getTxHash().isEmpty();
+        boolean withinWindow = true;
+        if (withdrawal.getProcessedAt() != null) {
+            withinWindow = LocalDateTime.now().isBefore(withdrawal.getProcessedAt().plusSeconds(confirmQueueDelaySeconds));
+        }
+
+        if (!(isPending && noTx && withinWindow)) {
+            throw new RuntimeException("Cannot cancel withdrawal in current state or window has elapsed");
         }
 
         withdrawal.setStatus(WithdrawalTransaction.WithdrawalStatus.CANCELLED);
         withdrawalRepository.save(withdrawal);
 
-        // Refund amount to user balance
-        pointsService.addPoints(userId.toString(), withdrawal.getAmount(),
-            "Withdrawal cancellation refund");
+        // Unlock the locked points
+        pointsService.unlockPointsForWithdrawal(userId.toString(), withdrawalId.toString());
 
-        log.info("Withdrawal cancelled: ID={}, Amount={}", withdrawalId, withdrawal.getAmount());
+        // Remove from any processing queues
+        try {
+            withdrawalQueueService.removeFromQueues(withdrawalId);
+        } catch (Exception e) {
+            log.warn("Failed to remove withdrawal {} from queues on cancel: {}", withdrawalId, e.getMessage());
+        }
+
+        log.info("Withdrawal cancelled and unlocked: ID={}, Amount={}", withdrawalId, withdrawal.getAmount());
         return true;
     }
 
@@ -175,7 +250,8 @@ public class WithdrawalService {
             "dailyUsed", dailyUsed,
             "remainingDaily", remainingDaily.max(BigDecimal.ZERO),
             "fixedFee", fixedFee,
-            "feePercentage", feePercentage.multiply(new BigDecimal("100")) + "%"
+            "feePercentage", feePercentage.multiply(new BigDecimal("100")) + "%",
+            "confirmDelaySeconds", confirmQueueDelaySeconds
         );
     }
 

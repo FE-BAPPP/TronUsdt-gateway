@@ -47,8 +47,8 @@ spring:
 
   security:
     jwt:
-      secret: 6ee0722956002f69de212acbe4a300fe58477a38e5f5c1c893ac6407e6936e369d4a428193b024a3d5d8a0ef5ae0f247
-      expiration: 86400000 # 24 hours
+      secret: ${JWT_SECRET}
+      expiration: 86400000 # 24 hour
 
 # Tron Configuration
 tron:

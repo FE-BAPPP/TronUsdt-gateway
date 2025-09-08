@@ -1,5 +1,6 @@
 package com.UsdtWallet.UsdtWallet.controller;
 
+import com.UsdtWallet.UsdtWallet.model.dto.request.WithdrawalConfirmRequest;
 import com.UsdtWallet.UsdtWallet.model.dto.request.WithdrawalRequest;
 import com.UsdtWallet.UsdtWallet.model.dto.response.ApiResponse;
 import com.UsdtWallet.UsdtWallet.model.entity.WithdrawalTransaction;
@@ -22,13 +23,9 @@ public class WithdrawalController {
 
     private final WithdrawalService withdrawalService;
 
-    /**
-     * Create automated withdrawal request
-     * Flow: Points → Automatic conversion → USDT transfer on blockchain
-     */
     @PostMapping("/request")
     public ResponseEntity<ApiResponse<Map<String, Object>>> createWithdrawal(
-            @Valid @RequestBody WithdrawalRequest request,
+            @Valid @RequestBody com.UsdtWallet.UsdtWallet.model.dto.request.WithdrawalCreateRequest request,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
         try {
             log.info("Automated withdrawal request from user: {}, amount: {}, address: {}",
@@ -152,6 +149,26 @@ public class WithdrawalController {
                 .body(ApiResponse.<Map<String, Object>>builder()
                     .success(false)
                     .message("Failed to get withdrawal limits: " + e.getMessage())
+                    .build());
+        }
+    }
+
+    /**
+     * Confirm withdrawal
+     */
+    @PostMapping("/confirm")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> confirmWithdrawal(
+            @Valid @RequestBody WithdrawalConfirmRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        try {
+            Map<String, Object> result = withdrawalService.confirmWithdrawal(userPrincipal.getId(), request);
+            return ResponseEntity.ok(ApiResponse.success("Withdrawal confirmed", result));
+        } catch (Exception e) {
+            log.error("Error confirming withdrawal", e);
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                    .success(false)
+                    .message("Failed to confirm withdrawal: " + e.getMessage())
                     .build());
         }
     }

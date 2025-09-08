@@ -76,18 +76,22 @@ public class WithdrawalTransaction {
     private LocalDateTime updatedAt;
 
     public enum WithdrawalStatus {
+        CREATED,
         PENDING,
         PROCESSING,
-        BROADCASTING,    // Đang broadcast transaction
-        SENT,           // Đã gửi, chờ confirm
-        CONFIRMED,      // Đã confirm trên blockchain
+        BROADCASTING,
+        SENT,
+        CONFIRMED,
         FAILED,
         CANCELLED
     }
 
     // Helper methods
     public boolean canBeCancelled() {
-        return status == WithdrawalStatus.PENDING;
+        // status PENDING, not processed yet, and no tx broadcast
+        return status == WithdrawalStatus.PENDING
+                && processedAt == null
+                && (txHash == null || txHash.isEmpty());
     }
 
     public boolean canBeRetried() {

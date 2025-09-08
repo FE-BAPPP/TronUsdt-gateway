@@ -58,7 +58,7 @@ export interface TransactionHistory {
 }
 
 export type TransactionType = 'DEPOSIT' | 'WITHDRAWAL' | 'SWEEP' | 'TRANSFER';
-export type TransactionStatus = 'PENDING' | 'CONFIRMED' | 'FAILED';
+export type TransactionStatus = 'PENDING' | 'PROCESSING' | 'BROADCASTING' | 'SENT' | 'CONFIRMED' | 'FAILED' | 'CANCELLED';
 
 export interface Transaction {
   id: string;
@@ -94,7 +94,10 @@ export interface Withdrawal {
   toAddress: string;
   status: TransactionStatus;
   createdAt: string;
+  processedAt?: string;
   confirmedAt?: string;
+  fee?: string;
+  netAmount?: string;
   txHash?: string;
 }
 

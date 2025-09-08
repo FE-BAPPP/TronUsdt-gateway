@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -390,5 +391,91 @@ public class PointsService {
     public boolean hasSufficientBalance(String userId, BigDecimal amount) {
         BigDecimal currentBalance = getCurrentBalance(userId);
         return currentBalance.compareTo(amount) >= 0;
+    }
+
+    /**
+     * Available balance = latest COMPLETED balance - pending withdrawal locks
+     */
+    public BigDecimal getAvailableBalance(String userId) {
+        BigDecimal current = getCurrentBalance(userId);
+        BigDecimal pendingLocks = pointsLedgerRepository.getTotalPendingWithdrawalLocks(userId);
+        // pendingLocks is negative values summed, e.g. -100 => subtracting a negative equals adding
+        return current.add(pendingLocks); // because locks are negative amounts
+    }
+
+    /**
+     * Create a PENDING lock ledger for withdrawal, idempotent by transactionId
+     */
+    @Transactional
+    public boolean lockPointsForWithdrawal(String userId, BigDecimal amount, String withdrawalId) {
+        String lockTxId = "WITHDRAWAL_LOCK_" + withdrawalId;
+        if (pointsLedgerRepository.existsByTransactionId(lockTxId)) {
+            log.info("Lock already exists: {}", lockTxId);
+            return true;
+        }
+        BigDecimal available = getAvailableBalance(userId);
+        if (available.compareTo(amount) < 0) {
+            throw new RuntimeException("Insufficient available balance");
+        }
+        // Create PENDING lock entry (negative amount)
+        PointsLedger lockEntry = PointsLedger.builder()
+            .userId(userId)
+            .transactionId(lockTxId)
+            .transactionType(PointsLedger.PointsTransactionType.WITHDRAWAL_DEBIT)
+            .amount(amount.negate())
+            .balanceBefore(getCurrentBalance(userId))
+            .balanceAfter(getCurrentBalance(userId)) // unchanged for PENDING
+            .description("Lock for withdrawal " + withdrawalId)
+            .status(PointsLedger.PointsTransactionStatus.PENDING)
+            .build();
+        pointsLedgerRepository.save(lockEntry);
+        log.info("Locked {} points for withdrawal {} (txId={})", amount, withdrawalId, lockTxId);
+        return true;
+    }
+
+    /**
+     * Cancel PENDING lock for withdrawal
+     */
+    @Transactional
+    public void unlockPointsForWithdrawal(String userId, String withdrawalId) {
+        String lockTxId = "WITHDRAWAL_LOCK_" + withdrawalId;
+        Optional<PointsLedger> lockOpt = pointsLedgerRepository.findFirstByTransactionId(lockTxId);
+        if (lockOpt.isEmpty()) return;
+        PointsLedger lock = lockOpt.get();
+        if (lock.getStatus() == PointsLedger.PointsTransactionStatus.PENDING) {
+            lock.setStatus(PointsLedger.PointsTransactionStatus.CANCELLED);
+            pointsLedgerRepository.save(lock);
+            log.info("Unlocked points lock {} for user {}", lockTxId, userId);
+        }
+    }
+
+    /**
+     * Finalize withdrawal: record a COMPLETED debit and close the lock (if exists)
+     */
+    @Transactional
+    public void finalizeWithdrawalDebit(String userId, BigDecimal amount, String withdrawalId) {
+        String debitTxId = "WITHDRAWAL_DEBIT_" + withdrawalId;
+        if (!pointsLedgerRepository.existsByTransactionId(debitTxId)) {
+            BigDecimal currentBalance = getCurrentBalance(userId);
+            BigDecimal newBalance = currentBalance.subtract(amount);
+            if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
+                throw new RuntimeException("Insufficient balance to finalize withdrawal");
+            }
+            PointsLedger debit = PointsLedger.builder()
+                .userId(userId)
+                .transactionId(debitTxId)
+                .transactionType(PointsLedger.PointsTransactionType.WITHDRAWAL_DEBIT)
+                .amount(amount.negate())
+                .balanceBefore(currentBalance)
+                .balanceAfter(newBalance)
+                .description("Finalize withdrawal " + withdrawalId)
+                .status(PointsLedger.PointsTransactionStatus.COMPLETED)
+                .build();
+            pointsLedgerRepository.save(debit);
+            updateBalanceCache(userId, newBalance);
+            log.info("Finalized withdrawal debit {} for user {} amount {}", withdrawalId, userId, amount);
+        }
+        // Close lock if present
+        unlockPointsForWithdrawal(userId, withdrawalId);
     }
 }

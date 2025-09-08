@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PointsLedgerRepository extends JpaRepository<PointsLedger, String> {
@@ -73,4 +74,10 @@ public interface PointsLedgerRepository extends JpaRepository<PointsLedger, Stri
 
     // Check if transaction already exists for wallet transaction
     boolean existsByTransactionId(String transactionId);
+
+    Optional<PointsLedger> findFirstByTransactionId(String transactionId);
+
+    @Query("SELECT COALESCE(SUM(pl.amount), 0) FROM PointsLedger pl WHERE pl.userId = :userId " +
+           "AND pl.transactionType = 'WITHDRAWAL_DEBIT' AND pl.status = 'PENDING'")
+    BigDecimal getTotalPendingWithdrawalLocks(@Param("userId") String userId);
 }

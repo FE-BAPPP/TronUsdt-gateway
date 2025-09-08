@@ -231,6 +231,10 @@ public class UserService {
         userInfo.put("walletAddress", walletAddress != null ? walletAddress : "");
         userInfo.put("createdAt", user.getDateCreated());
         userInfo.put("updatedAt", user.getDateUpdated());
+        // Security & 2FA fields for frontend
+        userInfo.put("twoFactorEnabled", user.isTwoFactorEnabled());
+        userInfo.put("twoFactorEnabledAt", user.getTwoFactorEnabledAt());
+        userInfo.put("withdrawalsDisabledUntil", user.getWithdrawalsDisabledUntil());
 
         return userInfo;
     }

@@ -50,6 +50,22 @@ public class WithdrawalQueueService {
     }
 
     /**
+     * Remove withdrawal from both delayed and main queues (on cancel)
+     */
+    public void removeFromQueues(Long withdrawalId) {
+        try {
+            String idStr = withdrawalId.toString();
+            // Remove from delayed zset
+            Long removedDelayed = redisTemplate.opsForZSet().remove("withdrawal:delayed", idStr);
+            // Remove all occurrences from main list
+            Long removedMain = customStringRedisTemplate.opsForList().remove(WITHDRAWAL_QUEUE_KEY, 0, idStr);
+            log.info("Removed withdrawal {} from queues. delayedRemoved={}, mainRemoved={}", withdrawalId, removedDelayed, removedMain);
+        } catch (Exception e) {
+            log.error("Failed to remove withdrawal {} from queues", withdrawalId, e);
+        }
+    }
+
+    /**
      * Process withdrawal queue - runs every 30 seconds
      */
     @Scheduled(fixedDelay = 30000)
@@ -144,7 +160,7 @@ public class WithdrawalQueueService {
     /**
      * Add withdrawal to queue with delay
      */
-    private void addToQueueWithDelay(Long withdrawalId, int delaySeconds) {
+    public void addToQueueWithDelay(Long withdrawalId, int delaySeconds) {
         // Use Redis sorted set for delayed processing
         long score = System.currentTimeMillis() + (delaySeconds * 1000L);
         redisTemplate.opsForZSet().add("withdrawal:delayed", withdrawalId.toString(), score);

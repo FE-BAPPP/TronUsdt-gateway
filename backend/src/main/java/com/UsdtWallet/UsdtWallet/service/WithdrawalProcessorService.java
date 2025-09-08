@@ -23,6 +23,7 @@ public class WithdrawalProcessorService {
     private final HdWalletService hdWalletService;
     private final TronApiService tronApiService;
     private final AuditLogService auditLogService;
+    private final PointsService pointsService;
 
     @Value("${withdrawal.confirmations.required:20}")
     private Integer requiredConfirmations;
@@ -36,44 +37,43 @@ public class WithdrawalProcessorService {
             log.info("Processing withdrawal: ID={}, Amount={}, ToAddress={}",
                     withdrawal.getId(), withdrawal.getAmount(), withdrawal.getToAddress());
 
-            // Check master wallet balance
+            // Check master wallet balance and TRX gas as before
             HdMasterWallet masterWallet = hdWalletService.getMasterWallet();
             BigDecimal masterBalance = tronApiService.getUsdtBalance(masterWallet.getMasterAddress());
-
             if (masterBalance.compareTo(withdrawal.getNetAmount()) < 0) {
                 throw new RuntimeException("Insufficient USDT balance in master wallet: " + masterBalance);
             }
-
-            // Check TRX balance for gas
             BigDecimal trxBalance = hdWalletService.getTrxBalance(masterWallet.getMasterAddress());
             if (trxBalance.compareTo(new BigDecimal("20")) < 0) {
                 throw new RuntimeException("Insufficient TRX balance for gas fees: " + trxBalance);
             }
 
-            // Create and sign transaction
+            // Create and broadcast transaction
             String txHash = createAndBroadcastTransaction(withdrawal, masterWallet);
 
-            // Update withdrawal status
+            // Update status
             withdrawal.setStatus(WithdrawalTransaction.WithdrawalStatus.BROADCASTING);
             withdrawal.setTxHash(txHash);
             withdrawal.setProcessedAt(LocalDateTime.now());
             withdrawalRepository.save(withdrawal);
 
-            // Log audit
             auditLogService.logWithdrawal(withdrawal, "Transaction broadcasted successfully");
+            log.info("Withdrawal transaction broadcasted: ID={}, TxHash={}", withdrawal.getId(), txHash);
 
-            log.info("Withdrawal transaction broadcasted: ID={}, TxHash={}",
-                    withdrawal.getId(), txHash);
-
-            // Monitor confirmation
             monitorTransactionConfirmation(withdrawal.getId());
 
         } catch (Exception e) {
             log.error("Error processing withdrawal: {}", withdrawal.getId(), e);
-
             withdrawal.setStatus(WithdrawalTransaction.WithdrawalStatus.FAILED);
             withdrawal.setFailureReason(e.getMessage());
             withdrawalRepository.save(withdrawal);
+
+            // Unlock on failure
+            try {
+                pointsService.unlockPointsForWithdrawal(withdrawal.getUserId().toString(), withdrawal.getId().toString());
+            } catch (Exception ex) {
+                log.error("Failed to unlock points for withdrawal {}", withdrawal.getId(), ex);
+            }
 
             auditLogService.logWithdrawal(withdrawal, "Processing failed: " + e.getMessage());
             throw e;
@@ -177,6 +177,18 @@ public class WithdrawalProcessorService {
             if (confirmations >= requiredConfirmations) {
                 withdrawal.setStatus(WithdrawalTransaction.WithdrawalStatus.CONFIRMED);
                 withdrawal.setConfirmedAt(LocalDateTime.now());
+
+                // Finalize deduction now
+                try {
+                    pointsService.finalizeWithdrawalDebit(
+                        withdrawal.getUserId().toString(),
+                        withdrawal.getAmount(),
+                        withdrawal.getId().toString()
+                    );
+                } catch (Exception e) {
+                    log.error("Failed to finalize points for withdrawal {}", withdrawal.getId(), e);
+                    // keep status but log critical
+                }
 
                 auditLogService.logWithdrawal(withdrawal,
                         "Transaction confirmed with " + confirmations + " confirmations");

@@ -21,10 +21,14 @@ export function useWallet() {
       ]);
       if (!walletRes.success) throw new Error(walletRes.message || 'Wallet load failed');
       const result: any = walletRes.data || {};
-      // Merge points balance as source of truth
+      // Merge points balance as source of truth (with available/locked)
       if (pointsRes.success && pointsRes.data) {
         const pb = pointsRes.data.balance ?? pointsRes.data.points ?? pointsRes.data;
+        const av = pointsRes.data.available ?? undefined;
+        const lk = pointsRes.data.locked ?? undefined;
         result.pointsBalance = typeof pb === 'number' ? pb : Number(pb || 0);
+        if (typeof av !== 'undefined') result.pointsAvailable = typeof av === 'number' ? av : Number(av || 0);
+        if (typeof lk !== 'undefined') result.pointsLocked = typeof lk === 'number' ? lk : Number(lk || 0);
       }
       if (limitsRes.success) result.limits = limitsRes.data;
       setData(result);
