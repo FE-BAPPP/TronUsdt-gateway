@@ -36,7 +36,7 @@ public class PointsController {
     @GetMapping("/balance")
     public ResponseEntity<Map<String, Object>> getBalance(@AuthenticationPrincipal UserPrincipal userPrincipal) {
         try {
-            String userId = userPrincipal.getId().toString();
+            java.util.UUID userId = userPrincipal.getId();
             java.math.BigDecimal balance = pointsService.getCurrentBalance(userId);
             java.math.BigDecimal available = pointsService.getAvailableBalance(userId);
             java.math.BigDecimal locked = balance.subtract(available).max(java.math.BigDecimal.ZERO);
@@ -70,7 +70,7 @@ public class PointsController {
             @RequestParam(defaultValue = "50") int limit) {
 
         try {
-            String userId = userPrincipal.getId().toString(); // Convert UUID to String
+            java.util.UUID userId = userPrincipal.getId();
             List<PointsLedger> history = pointsService.getTransactionHistory(userId, limit);
 
             return ResponseEntity.ok(Map.of(
@@ -93,7 +93,7 @@ public class PointsController {
     @GetMapping("/p2p-history")
     public ResponseEntity<Map<String, Object>> getP2PHistory(@AuthenticationPrincipal UserPrincipal userPrincipal) {
         try {
-            String userId = userPrincipal.getId().toString(); // Convert UUID to String
+            java.util.UUID userId = userPrincipal.getId();
             List<PointsLedger> p2pHistory = pointsService.getP2PHistory(userId);
 
             return ResponseEntity.ok(Map.of(
@@ -116,7 +116,7 @@ public class PointsController {
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getUserStats(@AuthenticationPrincipal UserPrincipal userPrincipal) {
         try {
-            String userId = userPrincipal.getId().toString(); // Convert UUID to String
+            java.util.UUID userId = userPrincipal.getId();
             Map<String, Object> stats = pointsService.getUserStats(userId);
 
             return ResponseEntity.ok(Map.of(
@@ -142,7 +142,16 @@ public class PointsController {
             @Valid @RequestBody TransferRequest request) {
 
         try {
-            String fromUserId = userPrincipal.getId().toString(); // Convert UUID to String
+            java.util.UUID fromUserId = userPrincipal.getId();
+            java.util.UUID toUserUuid;
+            try {
+                toUserUuid = java.util.UUID.fromString(request.getToUserId());
+            } catch (Exception ex) {
+                return ResponseEntity.ok(Map.of(
+                    "success", false,
+                    "message", "Invalid recipient user ID format"
+                ));
+            }
 
             // Verify password like Binance
             var user = userRepository.findById(userPrincipal.getId())
@@ -163,7 +172,7 @@ public class PointsController {
             }
 
             // Prevent self-transfer
-            if (fromUserId.equals(request.getToUserId())) {
+            if (fromUserId.equals(toUserUuid)) {
                 return ResponseEntity.ok(Map.of(
                     "success", false,
                     "message", "Cannot transfer to yourself"
@@ -172,21 +181,21 @@ public class PointsController {
 
             boolean success = pointsService.transferPoints(
                 fromUserId,
-                request.getToUserId(),
+                toUserUuid,
                 request.getAmount(),
                 request.getDescription()
             );
 
             if (success) {
                 log.info("P2P transfer successful: {} points from {} to {}",
-                    request.getAmount(), fromUserId, request.getToUserId());
+                    request.getAmount(), fromUserId, toUserUuid);
 
                 return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "Transfer completed successfully",
                     "data", Map.of(
                         "amount", request.getAmount(),
-                        "toUserId", request.getToUserId(),
+                        "toUserId", toUserUuid.toString(),
                         "description", request.getDescription()
                     )
                 ));

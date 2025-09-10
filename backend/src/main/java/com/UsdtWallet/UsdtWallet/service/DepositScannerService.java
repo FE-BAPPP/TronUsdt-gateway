@@ -223,7 +223,8 @@ public class DepositScannerService {
                 return false;
             }
 
-            String userId = String.valueOf(childWallet.get().getUserId());
+            // Use UUID directly per new schema
+            java.util.UUID userId = childWallet.get().getUserId();
             Long blockNumber = ((Number) txData.get("block_number")).longValue();
             Long blockTimestamp = ((Number) txData.get("block_timestamp")).longValue();
 
@@ -245,6 +246,7 @@ public class DepositScannerService {
                 .status(WalletTransaction.TransactionStatus.PENDING) // PENDING until swept
                 .direction(WalletTransaction.TransactionDirection.IN)
                 .userId(userId)
+                .childWalletId(childWallet.get().getId())
                 .confirmationCount(requiredConfirmations)
                 .build();
 

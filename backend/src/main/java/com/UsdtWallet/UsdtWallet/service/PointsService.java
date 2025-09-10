@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,7 +37,7 @@ public class PointsService {
      * Credit points for USDT deposit
      */
     @Transactional
-    public boolean creditPointsForDeposit(String userId, BigDecimal pointsAmount,
+    public boolean creditPointsForDeposit(UUID userId, BigDecimal pointsAmount,
                                         String transactionId, BigDecimal usdtAmount) {
         try {
             // Check if already credited
@@ -81,7 +80,7 @@ public class PointsService {
      * P2P transfer points between users
      */
     @Transactional
-    public boolean transferPoints(String fromUserId, String toUserId, BigDecimal amount, String description) {
+    public boolean transferPoints(UUID fromUserId, UUID toUserId, BigDecimal amount, String description) {
         String lockKey = TRANSFER_LOCK_KEY + fromUserId;
 
         try {
@@ -188,7 +187,7 @@ public class PointsService {
     /**
      * Get user's current points balance
      */
-    public BigDecimal getCurrentBalance(String userId) {
+    public BigDecimal getCurrentBalance(UUID userId) {
         try {
             // Try cache first
             String cacheKey = BALANCE_CACHE_KEY + userId;
@@ -219,7 +218,7 @@ public class PointsService {
      * Deduct points for withdrawal
      */
     @Transactional
-    public boolean deductPoints(String userId, BigDecimal amount, String description) {
+    public boolean deductPoints(UUID userId, BigDecimal amount, String description) {
         try {
             log.info("Deducting {} points from user: {}", amount, userId);
 
@@ -261,7 +260,7 @@ public class PointsService {
      * Add points (for refunds, bonuses, etc.)
      */
     @Transactional
-    public boolean addPoints(String userId, BigDecimal amount, String description) {
+    public boolean addPoints(UUID userId, BigDecimal amount, String description) {
         try {
             log.info("Adding {} points to user: {}", amount, userId);
 
@@ -298,7 +297,7 @@ public class PointsService {
     /**
      * Update balance cache
      */
-    private void updateBalanceCache(String userId, BigDecimal newBalance) {
+    private void updateBalanceCache(UUID userId, BigDecimal newBalance) {
         try {
             redisTemplate.opsForValue().set(
                 BALANCE_CACHE_KEY + userId,
@@ -315,7 +314,7 @@ public class PointsService {
      * Admin adjustment (bonus, refund, etc.)
      */
     @Transactional
-    public boolean adjustBalance(String userId, BigDecimal amount, String reason,
+    public boolean adjustBalance(UUID userId, BigDecimal amount, String reason,
                                PointsLedger.PointsTransactionType type) {
         try {
             BigDecimal currentBalance = getCurrentBalance(userId);
@@ -353,7 +352,7 @@ public class PointsService {
     /**
      * Get user's points transaction history
      */
-    public List<PointsLedger> getTransactionHistory(String userId, int limit) {
+    public List<PointsLedger> getTransactionHistory(UUID userId, int limit) {
         return pointsLedgerRepository.findByUserIdOrderByCreatedAtDesc(userId)
             .stream()
             .limit(limit)
@@ -363,14 +362,14 @@ public class PointsService {
     /**
      * Get user's P2P transaction history
      */
-    public List<PointsLedger> getP2PHistory(String userId) {
+    public List<PointsLedger> getP2PHistory(UUID userId) {
         return pointsLedgerRepository.findP2PTransactionsByUserId(userId);
     }
 
     /**
      * Get total statistics for user
      */
-    public Map<String, Object> getUserStats(String userId) {
+    public Map<String, Object> getUserStats(UUID userId) {
         BigDecimal currentBalance = getCurrentBalance(userId);
         BigDecimal totalDeposits = pointsLedgerRepository.getTotalDepositCredits(userId);
         BigDecimal totalSent = pointsLedgerRepository.getTotalP2PSent(userId);
@@ -388,7 +387,7 @@ public class PointsService {
     /**
      * Validate if user has sufficient balance
      */
-    public boolean hasSufficientBalance(String userId, BigDecimal amount) {
+    public boolean hasSufficientBalance(UUID userId, BigDecimal amount) {
         BigDecimal currentBalance = getCurrentBalance(userId);
         return currentBalance.compareTo(amount) >= 0;
     }
@@ -396,7 +395,7 @@ public class PointsService {
     /**
      * Available balance = latest COMPLETED balance - pending withdrawal locks
      */
-    public BigDecimal getAvailableBalance(String userId) {
+    public BigDecimal getAvailableBalance(UUID userId) {
         BigDecimal current = getCurrentBalance(userId);
         BigDecimal pendingLocks = pointsLedgerRepository.getTotalPendingWithdrawalLocks(userId);
         // pendingLocks is negative values summed, e.g. -100 => subtracting a negative equals adding
@@ -407,7 +406,7 @@ public class PointsService {
      * Create a PENDING lock ledger for withdrawal, idempotent by transactionId
      */
     @Transactional
-    public boolean lockPointsForWithdrawal(String userId, BigDecimal amount, String withdrawalId) {
+    public boolean lockPointsForWithdrawal(UUID userId, BigDecimal amount, String withdrawalId) {
         String lockTxId = "WITHDRAWAL_LOCK_" + withdrawalId;
         if (pointsLedgerRepository.existsByTransactionId(lockTxId)) {
             log.info("Lock already exists: {}", lockTxId);
@@ -437,7 +436,7 @@ public class PointsService {
      * Cancel PENDING lock for withdrawal
      */
     @Transactional
-    public void unlockPointsForWithdrawal(String userId, String withdrawalId) {
+    public void unlockPointsForWithdrawal(UUID userId, String withdrawalId) {
         String lockTxId = "WITHDRAWAL_LOCK_" + withdrawalId;
         Optional<PointsLedger> lockOpt = pointsLedgerRepository.findFirstByTransactionId(lockTxId);
         if (lockOpt.isEmpty()) return;
@@ -453,7 +452,7 @@ public class PointsService {
      * Finalize withdrawal: record a COMPLETED debit and close the lock (if exists)
      */
     @Transactional
-    public void finalizeWithdrawalDebit(String userId, BigDecimal amount, String withdrawalId) {
+    public void finalizeWithdrawalDebit(UUID userId, BigDecimal amount, String withdrawalId) {
         String debitTxId = "WITHDRAWAL_DEBIT_" + withdrawalId;
         if (!pointsLedgerRepository.existsByTransactionId(debitTxId)) {
             BigDecimal currentBalance = getCurrentBalance(userId);

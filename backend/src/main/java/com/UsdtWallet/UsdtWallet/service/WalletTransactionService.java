@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -19,7 +20,7 @@ public class WalletTransactionService {
 
     private final WalletTransactionRepository walletTransactionRepository;
 
-    public Page<WalletTransaction> getDepositHistoryByUserId(String userId, Pageable pageable) {
+    public Page<WalletTransaction> getDepositHistoryByUserId(UUID userId, Pageable pageable) {
         return walletTransactionRepository.findByUserIdAndTransactionTypeAndDirection(
             userId,
             WalletTransaction.TransactionType.DEPOSIT,
@@ -28,7 +29,7 @@ public class WalletTransactionService {
         );
     }
 
-    public List<WalletTransaction> getPendingDepositsByUserId(String userId) {
+    public List<WalletTransaction> getPendingDepositsByUserId(UUID userId) {
         return walletTransactionRepository.findByUserIdAndTransactionTypeAndStatus(
             userId,
             WalletTransaction.TransactionType.DEPOSIT,
@@ -36,13 +37,13 @@ public class WalletTransactionService {
         );
     }
 
-    public WalletTransaction getDepositByIdAndUserId(Long id, String userId) {
+    public WalletTransaction getDepositByIdAndUserId(Long id, UUID userId) {
         return walletTransactionRepository.findByIdAndUserIdAndTransactionType(
             id, userId, WalletTransaction.TransactionType.DEPOSIT
         ).orElse(null);
     }
 
-    public BigDecimal getTotalDepositedByUserId(String userId) {
+    public BigDecimal getTotalDepositedByUserId(UUID userId) {
         return walletTransactionRepository.sumAmountByUserIdAndTransactionTypeAndStatus(
             userId,
             WalletTransaction.TransactionType.DEPOSIT,
@@ -50,19 +51,19 @@ public class WalletTransactionService {
         );
     }
 
-    public Long getDepositCountByUserId(String userId) {
+    public Long getDepositCountByUserId(UUID userId) {
         return walletTransactionRepository.countByUserIdAndTransactionType(
             userId, WalletTransaction.TransactionType.DEPOSIT
         );
     }
 
-    public WalletTransaction getLastDepositByUserId(String userId) {
+    public WalletTransaction getLastDepositByUserId(UUID userId) {
         return walletTransactionRepository.findFirstByUserIdAndTransactionTypeOrderByCreatedAtDesc(
             userId, WalletTransaction.TransactionType.DEPOSIT
         ).orElse(null);
     }
 
-    public Long getPendingDepositCountByUserId(String userId) {
+    public Long getPendingDepositCountByUserId(UUID userId) {
         return walletTransactionRepository.countByUserIdAndTransactionTypeAndStatus(
             userId,
             WalletTransaction.TransactionType.DEPOSIT,
@@ -70,24 +71,24 @@ public class WalletTransactionService {
         );
     }
 
-    public WalletTransaction getTransactionByTxHashAndUserId(String txHash, String userId) {
+    public WalletTransaction getTransactionByTxHashAndUserId(String txHash, UUID userId) {
         return walletTransactionRepository.findByTxHashAndUserId(txHash, userId).orElse(null);
     }
 
     // Thêm các methods mới cho TransactionController
-    public Page<WalletTransaction> getFilteredTransactions(String userId, String type, String status,
+    public Page<WalletTransaction> getFilteredTransactions(UUID userId, String type, String status,
                                                          String startDate, String endDate, Pageable pageable) {
         // Implement filtering logic
         return walletTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
     }
 
-    public WalletTransaction getTransactionByIdAndUserId(Long id, String userId) {
+    public WalletTransaction getTransactionByIdAndUserId(Long id, UUID userId) {
         return walletTransactionRepository.findByIdAndUserIdAndTransactionType(
             id, userId, null // Lấy tất cả types
         ).orElse(null);
     }
 
-    public Map<String, Object> getTransactionSummary(String userId, LocalDateTime startDate, LocalDateTime endDate) {
+    public Map<String, Object> getTransactionSummary(UUID userId, LocalDateTime startDate, LocalDateTime endDate) {
         List<Object[]> summaryData = walletTransactionRepository.getTransactionSummaryByUserId(userId);
 
         Map<String, Object> summary = new HashMap<>();
@@ -117,11 +118,11 @@ public class WalletTransactionService {
         return summary;
     }
 
-    public List<WalletTransaction> getTransactionsByDateRange(String userId, LocalDateTime startDate, LocalDateTime endDate) {
+    public List<WalletTransaction> getTransactionsByDateRange(UUID userId, LocalDateTime startDate, LocalDateTime endDate) {
         return walletTransactionRepository.findByUserIdAndDateRange(userId, startDate, endDate);
     }
 
-    public List<WalletTransaction> getTransactionsForExport(String userId, String startDate, String endDate) {
+    public List<WalletTransaction> getTransactionsForExport(UUID userId, String startDate, String endDate) {
         if (startDate != null && endDate != null) {
             LocalDateTime start = LocalDateTime.parse(startDate + "T00:00:00");
             LocalDateTime end = LocalDateTime.parse(endDate + "T23:59:59");
@@ -130,7 +131,7 @@ public class WalletTransactionService {
         return walletTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
 
-    public List<WalletTransaction> searchTransactions(String userId, String keyword, int limit) {
+    public List<WalletTransaction> searchTransactions(UUID userId, String keyword, int limit) {
         // Implement search logic - search by txHash, amount, etc.
         List<WalletTransaction> allTransactions = walletTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return allTransactions.stream()

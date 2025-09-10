@@ -44,7 +44,7 @@ public class DepositUserController {
 
         // Lấy lịch sử deposits đã được credit points
         Page<WalletTransaction> deposits = walletTransactionService
-            .getDepositHistoryByUserId(currentUser.getId().toString(), pageable);
+            .getDepositHistoryByUserId(currentUser.getId(), pageable);
 
         return ResponseEntity.ok(deposits);
     }
@@ -57,7 +57,7 @@ public class DepositUserController {
             @AuthenticationPrincipal UserPrincipal currentUser) {
 
         List<WalletTransaction> pendingDeposits = walletTransactionService
-            .getPendingDepositsByUserId(currentUser.getId().toString());
+            .getPendingDepositsByUserId(currentUser.getId());
 
         return ResponseEntity.ok(pendingDeposits);
     }
@@ -71,7 +71,7 @@ public class DepositUserController {
             @PathVariable String txHash) {
 
         WalletTransaction transaction = walletTransactionService
-            .getTransactionByTxHashAndUserId(txHash, currentUser.getId().toString());
+            .getTransactionByTxHashAndUserId(txHash, currentUser.getId());
 
         if (transaction == null) {
             return ResponseEntity.notFound().build();

@@ -9,6 +9,7 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "points_ledger")
@@ -19,15 +20,26 @@ import java.time.LocalDateTime;
 public class PointsLedger {
 
     @Id
+    // Keep UUID string primary key to remain compatible with existing data
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", length = 36, updatable = false, nullable = false)
     private String id;
 
+    // UUID user reference
     @Column(name = "user_id", nullable = false)
-    private String userId;
+    private UUID userId;
 
+    // Reference to wallet_transactions(id)
+    @Column(name = "wallet_transaction_id")
+    private Long walletTransactionId;
+
+    // Optional reference to withdrawal_transactions(id)
+    @Column(name = "withdrawal_id")
+    private Long withdrawalId;
+
+    // Kept for business idempotency (previous logical transaction identifier)
     @Column(name = "transaction_id")
-    private String transactionId; // Reference to WalletTransaction
+    private String transactionId;
 
     @Column(name = "reference_id")
     private String referenceId; // For P2P transfers
@@ -46,10 +58,10 @@ public class PointsLedger {
     private BigDecimal balanceAfter;
 
     @Column(name = "from_user_id")
-    private String fromUserId; // For P2P transfers
+    private UUID fromUserId; // For P2P transfers
 
     @Column(name = "to_user_id")
-    private String toUserId; // For P2P transfers
+    private UUID toUserId; // For P2P transfers
 
     @Column(name = "description")
     private String description;

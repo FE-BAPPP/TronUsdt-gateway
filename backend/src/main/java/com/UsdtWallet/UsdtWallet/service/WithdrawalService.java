@@ -1,12 +1,10 @@
 package com.UsdtWallet.UsdtWallet.service;
 
-import com.UsdtWallet.UsdtWallet.model.dto.request.WithdrawalRequest;
 import com.UsdtWallet.UsdtWallet.model.entity.WithdrawalTransaction;
 import com.UsdtWallet.UsdtWallet.model.entity.User;
 import com.UsdtWallet.UsdtWallet.repository.WithdrawalTransactionRepository;
 import com.UsdtWallet.UsdtWallet.repository.UserRepository;
 import com.UsdtWallet.UsdtWallet.model.dto.request.WithdrawalConfirmRequest;
-import com.UsdtWallet.UsdtWallet.service.TwoFactorAuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -135,13 +133,13 @@ public class WithdrawalService {
 
         // Re-validate limits and check available balance (no deduction yet)
         validateWithdrawalLimits(userId, withdrawal.getAmount());
-        BigDecimal available = pointsService.getAvailableBalance(userId.toString());
+    BigDecimal available = pointsService.getAvailableBalance(userId);
         if (available.compareTo(withdrawal.getAmount()) < 0) {
             throw new RuntimeException("Insufficient available balance. Available: " + available + " USDT");
         }
 
         // Lock points for this withdrawal
-        pointsService.lockPointsForWithdrawal(userId.toString(), withdrawal.getAmount(), withdrawal.getId().toString());
+    pointsService.lockPointsForWithdrawal(userId, withdrawal.getAmount(), withdrawal.getId().toString());
 
         // Mark user-confirmed and enqueue with optional delay to allow cancel window
         withdrawal.setProcessedAt(LocalDateTime.now());
@@ -223,7 +221,7 @@ public class WithdrawalService {
         withdrawalRepository.save(withdrawal);
 
         // Unlock the locked points
-        pointsService.unlockPointsForWithdrawal(userId.toString(), withdrawalId.toString());
+    pointsService.unlockPointsForWithdrawal(userId, withdrawalId.toString());
 
         // Remove from any processing queues
         try {

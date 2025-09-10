@@ -70,7 +70,7 @@ public class WithdrawalProcessorService {
 
             // Unlock on failure
             try {
-                pointsService.unlockPointsForWithdrawal(withdrawal.getUserId().toString(), withdrawal.getId().toString());
+                pointsService.unlockPointsForWithdrawal(withdrawal.getUserId(), withdrawal.getId().toString());
             } catch (Exception ex) {
                 log.error("Failed to unlock points for withdrawal {}", withdrawal.getId(), ex);
             }
@@ -181,7 +181,7 @@ public class WithdrawalProcessorService {
                 // Finalize deduction now
                 try {
                     pointsService.finalizeWithdrawalDebit(
-                        withdrawal.getUserId().toString(),
+                        withdrawal.getUserId(),
                         withdrawal.getAmount(),
                         withdrawal.getId().toString()
                     );

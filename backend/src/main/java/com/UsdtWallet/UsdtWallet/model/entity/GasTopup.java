@@ -23,6 +23,9 @@ public class GasTopup {
     @Column(name = "child_index", nullable = false)
     private Integer childIndex;
 
+    @Column(name = "child_wallet_id")
+    private Long childWalletId;
+
     @Column(name = "amount_trx", precision = 30, scale = 6, nullable = false)
     private BigDecimal amountTrx;
 

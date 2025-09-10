@@ -12,9 +12,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
-public interface WalletTransactionRepository extends JpaRepository<WalletTransaction, String> {
+public interface WalletTransactionRepository extends JpaRepository<WalletTransaction, Long> {
 
     // --- Các method cho DepositScanner / Sweep ---
 
@@ -25,7 +26,7 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     Optional<WalletTransaction> findBySweepTxHash(String sweepTxHash);
 
     // Find transactions by user
-    List<WalletTransaction> findByUserIdOrderByCreatedAtDesc(String userId);
+        List<WalletTransaction> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
     // Find transactions by address
     List<WalletTransaction> findByToAddressOrderByCreatedAtDesc(String toAddress);
@@ -53,7 +54,7 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     // Get total deposit amount for user
     @Query("SELECT COALESCE(SUM(wt.amount), 0) FROM WalletTransaction wt WHERE wt.userId = :userId " +
             "AND wt.transactionType = 'DEPOSIT' AND wt.status = 'CONFIRMED'")
-    BigDecimal getTotalDepositAmountByUser(@Param("userId") String userId);
+        BigDecimal getTotalDepositAmountByUser(@Param("userId") UUID userId);
 
     // Get transactions by block number range (for scanning)
     @Query("SELECT wt FROM WalletTransaction wt WHERE wt.blockNumber BETWEEN :fromBlock AND :toBlock " +
@@ -70,7 +71,7 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     List<WalletTransaction> findDepositsNeedingPointsCredit();
 
     // Get paginated transactions for user
-    Page<WalletTransaction> findByUserIdOrderByCreatedAtDesc(String userId, Pageable pageable);
+        Page<WalletTransaction> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
     // Find failed transactions for retry
     @Query("SELECT wt FROM WalletTransaction wt WHERE wt.status = 'FAILED' " +
@@ -80,63 +81,63 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
 
     // --- Các method cho WalletTransactionService ---
 
-    Page<WalletTransaction> findByUserIdAndTransactionTypeAndDirection(
-            String userId,
+        Page<WalletTransaction> findByUserIdAndTransactionTypeAndDirection(
+                        UUID userId,
             WalletTransaction.TransactionType type,
             WalletTransaction.TransactionDirection direction,
             Pageable pageable
     );
 
-    List<WalletTransaction> findByUserIdAndTransactionTypeAndStatus(
-            String userId,
+        List<WalletTransaction> findByUserIdAndTransactionTypeAndStatus(
+                        UUID userId,
             WalletTransaction.TransactionType type,
             WalletTransaction.TransactionStatus status
     );
 
-    Optional<WalletTransaction> findByIdAndUserIdAndTransactionType(
-            Long id,
-            String userId,
+        Optional<WalletTransaction> findByIdAndUserIdAndTransactionType(
+                        Long id,
+                        UUID userId,
             WalletTransaction.TransactionType type
     );
 
     @Query("SELECT COALESCE(SUM(w.amount), 0) FROM WalletTransaction w " +
             "WHERE w.userId = :userId AND w.transactionType = :type AND w.status = :status")
-    BigDecimal sumAmountByUserIdAndTransactionTypeAndStatus(
-            @Param("userId") String userId,
+        BigDecimal sumAmountByUserIdAndTransactionTypeAndStatus(
+                        @Param("userId") UUID userId,
             @Param("type") WalletTransaction.TransactionType type,
             @Param("status") WalletTransaction.TransactionStatus status
     );
 
-    long countByUserIdAndTransactionType(
-            String userId,
+        long countByUserIdAndTransactionType(
+                        UUID userId,
             WalletTransaction.TransactionType type
     );
 
-    Optional<WalletTransaction> findFirstByUserIdAndTransactionTypeOrderByCreatedAtDesc(
-            String userId,
+        Optional<WalletTransaction> findFirstByUserIdAndTransactionTypeOrderByCreatedAtDesc(
+                        UUID userId,
             WalletTransaction.TransactionType type
     );
 
-    long countByUserIdAndTransactionTypeAndStatus(
-            String userId,
+        long countByUserIdAndTransactionTypeAndStatus(
+                        UUID userId,
             WalletTransaction.TransactionType type,
             WalletTransaction.TransactionStatus status
     );
 
     Optional<WalletTransaction> findByTxHashAndUserId(
             String txHash,
-            String userId
+            UUID userId
     );
 
     // Transaction summary (group by type)
     @Query("SELECT w.transactionType, COUNT(w), COALESCE(SUM(w.amount), 0) " +
             "FROM WalletTransaction w WHERE w.userId = :userId GROUP BY w.transactionType")
-    List<Object[]> getTransactionSummaryByUserId(@Param("userId") String userId);
+        List<Object[]> getTransactionSummaryByUserId(@Param("userId") UUID userId);
 
     @Query("SELECT w FROM WalletTransaction w " +
             "WHERE w.userId = :userId AND w.createdAt BETWEEN :startDate AND :endDate")
-    List<WalletTransaction> findByUserIdAndDateRange(
-            @Param("userId") String userId,
+        List<WalletTransaction> findByUserIdAndDateRange(
+                        @Param("userId") UUID userId,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );

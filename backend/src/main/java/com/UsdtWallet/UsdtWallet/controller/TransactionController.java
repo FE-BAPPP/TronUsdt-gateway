@@ -14,9 +14,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -49,7 +46,7 @@ public class TransactionController {
         Pageable pageable = PageRequest.of(page, size, sort);
 
         Page<WalletTransaction> transactions = walletTransactionService
-            .getFilteredTransactions(currentUser.getId().toString(), type, status,
+            .getFilteredTransactions(currentUser.getId(), type, status,
                                    startDate, endDate, pageable);
 
         return ResponseEntity.ok(transactions);
@@ -64,7 +61,7 @@ public class TransactionController {
             @PathVariable Long txId) {
 
         WalletTransaction transaction = walletTransactionService
-            .getTransactionByIdAndUserId(txId, currentUser.getId().toString());
+            .getTransactionByIdAndUserId(txId, currentUser.getId());
 
         if (transaction == null) {
             return ResponseEntity.notFound().build();
@@ -81,7 +78,7 @@ public class TransactionController {
             @AuthenticationPrincipal UserPrincipal currentUser,
             @RequestParam(defaultValue = "30") int days) {
 
-        String userId = currentUser.getId().toString();
+    java.util.UUID userId = currentUser.getId();
         LocalDateTime endDate = LocalDateTime.now();
         LocalDateTime startDate = endDate.minusDays(days);
 

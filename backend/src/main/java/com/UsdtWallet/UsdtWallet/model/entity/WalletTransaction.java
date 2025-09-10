@@ -10,6 +10,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "wallet_transactions")
@@ -57,7 +58,10 @@ public class WalletTransaction {
     private TransactionDirection direction;
 
     @Column(name = "user_id")
-    private String userId; // User who owns the wallet
+    private UUID userId;
+
+    @Column(name = "child_wallet_id")
+    private Long childWalletId;
 
     @Column(name = "gas_used")
     private BigDecimal gasUsed;

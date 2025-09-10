@@ -316,6 +316,7 @@ public class UsdtSweepService {
                 .direction(WalletTransaction.TransactionDirection.OUT)
                 .status(WalletTransaction.TransactionStatus.PENDING)
                 .userId(deposit.getUserId())
+                .childWalletId(deposit.getChildWalletId())
                 .gasUsed(gasLimitTrx)
                 .build();
 

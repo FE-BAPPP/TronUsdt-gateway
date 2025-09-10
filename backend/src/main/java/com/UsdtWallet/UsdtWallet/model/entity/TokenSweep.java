@@ -27,6 +27,9 @@ public class TokenSweep {
     @Column(name = "child_address", length = 64, nullable = false)
     private String childAddress;
 
+    @Column(name = "child_wallet_id")
+    private Long childWalletId;
+
     @Column(name = "master_address", length = 64, nullable = false)
     private String masterAddress;
 
