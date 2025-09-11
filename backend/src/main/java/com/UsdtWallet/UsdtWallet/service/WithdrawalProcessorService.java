@@ -24,6 +24,7 @@ public class WithdrawalProcessorService {
     private final TronApiService tronApiService;
     private final AuditLogService auditLogService;
     private final PointsService pointsService;
+    private final NotificationService notificationService; 
 
     @Value("${withdrawal.confirmations.required:20}")
     private Integer requiredConfirmations;
@@ -56,6 +57,19 @@ public class WithdrawalProcessorService {
             withdrawal.setTxHash(txHash);
             withdrawal.setProcessedAt(LocalDateTime.now());
             withdrawalRepository.save(withdrawal);
+
+            // Send notification: withdrawal processing
+            try {
+                notificationService.notifyWithdrawalProcessing(
+                    withdrawal.getUserId(),
+                    withdrawal.getId().toString(),
+                    txHash,
+                    withdrawal.getAmount()
+                );
+                log.debug("Sent withdrawal processing notification to user: {}", withdrawal.getUserId());
+            } catch (Exception notifException) {
+                log.warn("Failed to send withdrawal processing notification (not critical): ", notifException);
+            }
 
             auditLogService.logWithdrawal(withdrawal, "Transaction broadcasted successfully");
             log.info("Withdrawal transaction broadcasted: ID={}, TxHash={}", withdrawal.getId(), txHash);
@@ -188,6 +202,23 @@ public class WithdrawalProcessorService {
                 } catch (Exception e) {
                     log.error("Failed to finalize points for withdrawal {}", withdrawal.getId(), e);
                     // keep status but log critical
+                }
+
+                // Send notifications: withdrawal completed + balance update
+                try {
+                    notificationService.notifyWithdrawalCompleted(
+                        withdrawal.getUserId(),
+                        withdrawal.getTxHash(),
+                        withdrawal.getAmount()
+                    );
+                    
+                    // Send balance update notification
+                    BigDecimal newBalance = pointsService.getCurrentBalance(withdrawal.getUserId());
+                    notificationService.notifyBalanceUpdate(withdrawal.getUserId(), newBalance);
+                    
+                    log.debug(" Sent withdrawal completion notifications to user: {}", withdrawal.getUserId());
+                } catch (Exception notifException) {
+                    log.warn(" Failed to send withdrawal completion notification (not critical): ", notifException);
                 }
 
                 auditLogService.logWithdrawal(withdrawal,

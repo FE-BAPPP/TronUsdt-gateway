@@ -23,6 +23,7 @@ public class PointsService {
 
     private final PointsLedgerRepository pointsLedgerRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final NotificationService notificationService;
 
     @Value("${points.exchange.rate:1.0}")
     private BigDecimal defaultExchangeRate; // 1 USDT = 1 Point
@@ -77,7 +78,7 @@ public class PointsService {
     }
 
     /**
-     * P2P transfer points between users
+     * Transfer points between users (P2P)
      */
     @Transactional
     public boolean transferPoints(UUID fromUserId, UUID toUserId, BigDecimal amount, String description) {
@@ -172,6 +173,16 @@ public class PointsService {
 
             log.info("✅ P2P transfer completed: {} points from {} to {} (net: {}, fee: {})",
                 amount, fromUserId, toUserId, netAmount, fee);
+
+            // Send notifications to both users
+            notificationService.notifyPointsTransferred(fromUserId, amount, "user", false);
+            notificationService.notifyPointsTransferred(toUserId, amount, "user", true);
+
+            // Send balance updates
+            BigDecimal fromBalance = getCurrentBalance(fromUserId);
+            BigDecimal toBalance = getCurrentBalance(toUserId);
+            notificationService.notifyBalanceUpdate(fromUserId, fromBalance);
+            notificationService.notifyBalanceUpdate(toUserId, toBalance);
 
             return true;
 

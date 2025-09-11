@@ -34,7 +34,8 @@ public class DepositScannerService {
     @Qualifier("customStringRedisTemplate")
     private final RedisTemplate<String, String> customStringRedisTemplate; // Updated bean name
     private final PointsService pointsService;
-    private final UsdtSweepService usdtSweepService; // Add sweep service
+    private final UsdtSweepService usdtSweepService; 
+    private final NotificationService notificationService;
 
     @Value("${deposit.scanner.confirmations.required:3}")
     private Integer requiredConfirmations;
@@ -260,6 +261,14 @@ public class DepositScannerService {
 
             log.info("💰 New deposit detected: {} USDT from {} to {} (User: {}) - PENDING sweep",
                 amount, fromAddressBase58, toAddressBase58, userId);
+
+            //  Send notification: deposit detected 
+            try {
+                notificationService.notifyDepositDetected(userId, txHash, amount);
+                log.debug(" Sent deposit detection notification to user: {}", userId);
+            } catch (Exception notifException) {
+                log.warn(" Failed to send deposit notification (not critical): ", notifException);
+            }
 
             // Trigger sweep immediately - points will be credited AFTER successful sweep
             usdtSweepService.triggerSweepWithPointsCredit(transaction);

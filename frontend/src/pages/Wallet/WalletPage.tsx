@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useMemo, useState, useEffect } from "react"
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react"
 import { motion } from "framer-motion"
 import { useWallet, useDeposits, useWithdrawals } from "../../hooks/useApi"
 import { userApi } from "../../services/api"
@@ -22,8 +22,10 @@ import {
   Zap
 } from "lucide-react"
 
+
 export function WalletPage() {
   const [activeTab, setActiveTab] = useState("overview")
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date>(new Date())
 
   const { data: walletData, loading: walletLoading, refetch: refetchWallet } = useWallet()
   const {
@@ -33,6 +35,45 @@ export function WalletPage() {
     refetch: refetchDeposits,
   } = useDeposits(0, 10)
   const { data: withdrawalsData, refetch: refetchWithdrawals } = useWithdrawals(0, 10)
+
+  // Store refetch functions in refs to avoid dependency changes
+  const refetchFunctionsRef = useRef({
+    refetchWallet,
+    refetchDeposits, 
+    refetchWithdrawals
+  })
+
+  // Update refs when functions change
+  useEffect(() => {
+    refetchFunctionsRef.current = {
+      refetchWallet,
+      refetchDeposits,
+      refetchWithdrawals
+    }
+  }, [refetchWallet, refetchDeposits, refetchWithdrawals])
+
+
+
+  // Listen to global balance updates from NotificationContainer
+  useEffect(() => {
+    const handleBalanceUpdate = () => {
+      setLastUpdateTime(new Date());
+      
+      // Refresh wallet data to get latest state
+      setTimeout(() => {
+        const { refetchWallet, refetchDeposits, refetchWithdrawals } = refetchFunctionsRef.current;
+        refetchWallet();
+        refetchDeposits();
+        refetchWithdrawals();
+      }, 1000); // Small delay to ensure backend is updated
+    };
+
+    window.addEventListener('balanceUpdate', handleBalanceUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('balanceUpdate', handleBalanceUpdate as EventListener);
+    };
+  }, []);
 
   const tabs = [
     { id: "overview", label: "Overview", icon: BarChart3 },
@@ -77,12 +118,25 @@ export function WalletPage() {
         <div className="absolute inset-0 bg-gradient-to-r from-yellow-600/20 via-yellow-500/20 to-yellow-400/20"></div>
         <div className="ui-card-body text-center">
           <div className="mb-6">
-            <div className="text-gray-300 text-sm mb-2">Available Balance</div>
+            <div className="flex items-center justify-center gap-4 mb-2">
+              <div className="text-gray-300 text-sm">Available Balance</div>
+              <div className="text-xs text-gray-500">
+                Updated: {lastUpdateTime.toLocaleTimeString()}
+              </div>
+            </div>
             <div className="text-4xl md:text-5xl font-bold text-white mb-2">
               {walletData?.pointsBalance || "0.00"}
             </div>
             <div className="text-yellow-300 font-medium">POINTS</div>
             <div className="text-gray-400 text-sm mt-2">1 point = 1 USDT equivalent</div>
+            
+            {/* Real-time connection indicator */}
+            <div className="mt-3 flex items-center justify-center gap-2 text-sm">
+              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+              <span className="text-green-400">
+                Real-time updates active
+              </span>
+            </div>
           </div>
           
           <div className="grid grid-cols-3 gap-4">

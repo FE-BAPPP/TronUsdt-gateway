@@ -40,6 +40,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/test/**").permitAll() // Allow all test endpoints
                         .requestMatchers("/api/dev/**").permitAll() // Allow dev endpoints for development
 
+                        .requestMatchers("/api/notifications/stream").permitAll() // Allow SSE stream endpoint
+
                         // Health check endpoints
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/health").permitAll()

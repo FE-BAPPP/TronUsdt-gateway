@@ -1,3 +1,4 @@
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./components/Layout/Layout";
 import { Dashboard } from "./pages/Dashboard";
@@ -14,6 +15,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthContext, useAuthProvider } from "./hooks/useAuth";
 import { ForgotPassword } from "./pages/Auth/ForgotPassword";
 import { ResetPassword } from "./pages/Auth/ResetPassword";
+import { NotificationContainer } from './components/notifications/NotificationContainer';
 
 function AppRoutes() {
   return (
@@ -128,6 +130,10 @@ function App() {
       <Router>
         <div className="min-h-screen bg-gray-900">
           <AppRoutes />
+          
+          <NotificationContainer onBalanceUpdate={(balance) => {
+            window.dispatchEvent(new CustomEvent('balanceUpdate', { detail: balance }));
+          }} />
         </div>
       </Router>
     </AuthContext.Provider>

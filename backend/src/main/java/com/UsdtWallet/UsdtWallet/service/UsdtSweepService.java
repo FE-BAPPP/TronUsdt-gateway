@@ -32,10 +32,11 @@ public class UsdtSweepService {
     private final TronApiService tronApiService;
     private final WalletTransactionRepository walletTransactionRepository;
     private final TokenSweepRepository tokenSweepRepository;
-    private final GasTopupRepository gasTopupRepository; // ĐÃ CÓ IMPORT
+    private final GasTopupRepository gasTopupRepository; 
     private final HdWalletService hdWalletService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final PointsService pointsService;
+    private final NotificationService notificationService; 
 
     @Value("${sweep.min.amount:5}")
     private BigDecimal minimumSweepAmount;
@@ -288,7 +289,7 @@ public class UsdtSweepService {
                 throw new RuntimeException("Failed to sign USDT transaction");
             }
 
-            // 5. Broadcast transaction
+            
             log.info("📡 Broadcasting USDT transaction");
             String txHash = tronApiService.broadcastTransaction(signedTransaction);
             if (txHash == null) {
@@ -498,6 +499,25 @@ public class UsdtSweepService {
                                                 // Mark deposit fully completed after points credited
                                                 deposit.setStatus(WalletTransaction.TransactionStatus.COMPLETED);
                                                 walletTransactionRepository.save(deposit);
+
+                                                //  Send notifications: deposit confirmed + balance update
+                                                try {
+                                                    notificationService.notifyDepositConfirmed(
+                                                        deposit.getUserId(),
+                                                        deposit.getTxHash(),
+                                                        deposit.getAmount(),
+                                                        deposit.getAmount()
+                                                    );
+                                                    
+                                                
+                                                    BigDecimal newBalance = pointsService.getCurrentBalance(deposit.getUserId());
+                                                    notificationService.notifyBalanceUpdate(deposit.getUserId(), newBalance);
+                                                    
+                                                    log.debug(" Sent deposit confirmation notifications to user: {}", deposit.getUserId());
+                                                } catch (Exception notifException) {
+                                                    log.warn(" Failed to send deposit confirmation notification (not critical): ", notifException);
+                                                }
+
                                                 log.info("🎁 Points credited after sweep confirmation: user={}, amount={} points, depositId={}",
                                                     deposit.getUserId(), deposit.getAmount(), deposit.getId());
                                             } else {
@@ -655,7 +675,7 @@ public class UsdtSweepService {
     }
 
     /**
-     * Trigger immediate sweep with points credit - THIẾU METHOD NÀY
+     * Trigger immediate sweep with points credit 
      */
     public void triggerSweepWithPointsCredit(WalletTransaction depositTransaction) {
         try {
@@ -677,16 +697,14 @@ public class UsdtSweepService {
                 SweepResultDto.SweepTransactionDto result = sweepSingleDeposit(depositTransaction);
 
                 if ("SUCCESS".equals(result.getStatus())) {
-                    // Do NOT credit points here; wait for blockchain confirmation
                     log.info("✅ Sweep transaction broadcasted for deposit {} (txHash={}). Waiting for confirmation before crediting points.",
                         depositTransaction.getId(), result.getTxHash());
                 } else {
                     log.warn("⚠️ Immediate sweep failed for {}: {}", address, result.getErrorMessage());
-                    // Keep transaction status as PENDING for retry later
                 }
 
             } finally {
-                // Release address-specific lock
+
                 redisTemplate.delete(sweepLockKey);
             }
 
