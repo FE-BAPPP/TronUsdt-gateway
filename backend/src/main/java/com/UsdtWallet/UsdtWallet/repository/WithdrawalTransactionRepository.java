@@ -98,6 +98,13 @@ public interface WithdrawalTransactionRepository extends JpaRepository<Withdrawa
             WithdrawalTransaction.WithdrawalStatus status,
             Pageable pageable);
 
+       // Sum of withdrawal amounts for a user
+       @Query("SELECT COALESCE(SUM(w.amount), 0) FROM WithdrawalTransaction w WHERE w.userId = :userId")
+       java.math.BigDecimal sumAmountByUserId(@Param("userId") UUID userId);
+
+       // Count withdrawals for a user
+       long countByUserId(UUID userId);
+
     // Auto-cancel helpers
     List<WithdrawalTransaction> findByStatusAndCreatedAtBefore(
             WithdrawalTransaction.WithdrawalStatus status,

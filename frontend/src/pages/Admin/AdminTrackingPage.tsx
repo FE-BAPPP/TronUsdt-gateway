@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { adminApi } from '../../services/api';
+import { getDepositsHistory } from '../../services/adminApi';
 import { 
   BarChart3, 
   Wallet, 
@@ -19,17 +20,24 @@ import {
 export function AdminTrackingPage() {
   const [overview, setOverview] = useState<any>(null);
   const [recentDeposits, setRecentDeposits] = useState<any[]>([]);
+  const [depositsPage, setDepositsPage] = useState<number>(0);
+  const [depositsSize, setDepositsSize] = useState<number>(10);
+  const [depositsTotalPages, setDepositsTotalPages] = useState<number>(1);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const load = async () => {
     try {
       const [ovRes, depRes] = await Promise.all([
         adminApi.getDashboardOverview(),
-        adminApi.getRecentDeposits(10)
+  getDepositsHistory(depositsPage, depositsSize)
       ]);
       
       if (ovRes.success) setOverview(ovRes.data);
-      if (depRes.success) setRecentDeposits(depRes.data?.deposits || depRes.data || []);
+      if (depRes.success) {
+        const payload = depRes.data || {};
+        setRecentDeposits(payload.deposits || payload || []);
+        setDepositsTotalPages(typeof payload.totalPages === 'number' ? payload.totalPages : (payload.total_pages ?? 1));
+      }
     } catch (error) {
       console.error('Failed to load tracking data:', error);
     }
@@ -38,6 +46,23 @@ export function AdminTrackingPage() {
   useEffect(() => {
     load();
   }, []);
+
+  // Reload deposits when pagination changes
+  useEffect(() => {
+    const loadDepositsOnly = async () => {
+      try {
+        const depRes = await getDepositsHistory(depositsPage, depositsSize);
+        if (depRes.success) {
+          const payload = depRes.data || {};
+          setRecentDeposits(payload.deposits || payload || []);
+          setDepositsTotalPages(typeof payload.totalPages === 'number' ? payload.totalPages : (payload.total_pages ?? 1));
+        }
+      } catch (e) {
+        console.error('Failed to load deposits page:', e);
+      }
+    };
+    loadDepositsOnly();
+  }, [depositsPage, depositsSize]);
 
   return (
     <div className="ui-section">
@@ -162,8 +187,8 @@ export function AdminTrackingPage() {
         </div>
         <div className="ui-card-body">
           {recentDeposits.length ? (
-            <div className="space-y-4">
-              {recentDeposits.slice(0, 10).map((d: any, idx: number) => (
+                <div className="space-y-4">
+                  {recentDeposits.map((d: any, idx: number) => (
                 <div key={d.id || idx} className="ui-card bg-white/5 hover:bg-white/10 transition-colors">
                   <div className="ui-card-body">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -172,7 +197,7 @@ export function AdminTrackingPage() {
                           {d.address || d.toAddress || d.from || d.to || '—'}
                         </div>
                         <div className="text-gray-400 text-xs">
-                          {d.amount ?? d.value} {d.asset ?? 'USDT'} • {new Date(d.createdAt || d.created_at || d.timestamp || Date.now()).toLocaleString()}
+                          {d.username ? `${d.username} • ` : ''}{d.amount ?? d.value} {d.asset ?? 'USDT'} • {new Date(d.createdAt || d.created_at || d.timestamp || Date.now()).toLocaleString()}
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -196,6 +221,32 @@ export function AdminTrackingPage() {
                   </div>
                 </div>
               ))}
+              {/* Pagination controls */}
+              <div className="flex items-center justify-between mt-4">
+                <div className="text-sm text-gray-400">Page {depositsPage + 1} of {depositsTotalPages}</div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={async () => {
+                      if (depositsPage <= 0) return;
+                      setDepositsPage((p) => p - 1);
+                    }}
+                    disabled={depositsPage <= 0}
+                    className={`ui-btn ${depositsPage <= 0 ? 'bg-gray-600/20 border-gray-600/30 text-gray-500 cursor-not-allowed' : 'bg-blue-600/20 hover:bg-blue-600/30 border-blue-500/30 text-blue-400'}`}
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (depositsPage + 1 >= depositsTotalPages) return;
+                      setDepositsPage((p) => p + 1);
+                    }}
+                    disabled={depositsPage + 1 >= depositsTotalPages}
+                    className={`ui-btn ${depositsPage + 1 >= depositsTotalPages ? 'bg-gray-600/20 border-gray-600/30 text-gray-500 cursor-not-allowed' : 'bg-blue-600/20 hover:bg-blue-600/30 border-blue-500/30 text-blue-400'}`}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="text-center py-8">

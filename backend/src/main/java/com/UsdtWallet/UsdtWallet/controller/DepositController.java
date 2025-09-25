@@ -3,7 +3,9 @@ package com.UsdtWallet.UsdtWallet.controller;
 import com.UsdtWallet.UsdtWallet.model.dto.SweepResultDto;
 import com.UsdtWallet.UsdtWallet.model.dto.response.ApiResponse;
 import com.UsdtWallet.UsdtWallet.model.entity.WalletTransaction;
+import com.UsdtWallet.UsdtWallet.model.entity.User;
 import com.UsdtWallet.UsdtWallet.repository.WalletTransactionRepository;
+import com.UsdtWallet.UsdtWallet.repository.UserRepository;
 import com.UsdtWallet.UsdtWallet.service.UsdtSweepService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,7 @@ public class DepositController {
 
     private final WalletTransactionRepository walletTransactionRepository;
     private final UsdtSweepService usdtSweepService;
+    private final UserRepository userRepository;
 
     /**
      * GET /api/admin/deposits/recent
@@ -39,11 +42,28 @@ public class DepositController {
                 WalletTransaction.TransactionType.DEPOSIT, pageable
             );
 
-            List<WalletTransaction> deposits = page.getContent();
+            var enriched = page.getContent().stream().map(d -> {
+                var m = new java.util.HashMap<String, Object>();
+                m.put("id", d.getId());
+                m.put("userId", d.getUserId());
+                try {
+                    java.util.Optional<User> u = userRepository.findById(d.getUserId());
+                    m.put("username", u.map(User::getUsername).orElse(null));
+                } catch (Exception ex) {
+                    m.put("username", null);
+                }
+                m.put("amount", d.getAmount());
+                m.put("fromAddress", d.getFromAddress());
+                m.put("toAddress", d.getToAddress());
+                m.put("txHash", d.getTxHash());
+                m.put("createdAt", d.getCreatedAt());
+                m.put("status", d.getStatus());
+                return m;
+            }).toList();
 
             Map<String, Object> result = Map.of(
-                "deposits", deposits,
-                "count", deposits.size()
+                "deposits", enriched,
+                "count", enriched.size()
             );
 
             return ResponseEntity.ok(ApiResponse.success(result));
@@ -70,11 +90,28 @@ public class DepositController {
                 WalletTransaction.TransactionType.DEPOSIT, pageable
             );
 
-            List<WalletTransaction> pending = page.getContent();
+            var enriched = page.getContent().stream().map(d -> {
+                var m = new java.util.HashMap<String, Object>();
+                m.put("id", d.getId());
+                m.put("userId", d.getUserId());
+                try {
+                    java.util.Optional<User> u = userRepository.findById(d.getUserId());
+                    m.put("username", u.map(User::getUsername).orElse(null));
+                } catch (Exception ex) {
+                    m.put("username", null);
+                }
+                m.put("amount", d.getAmount());
+                m.put("fromAddress", d.getFromAddress());
+                m.put("toAddress", d.getToAddress());
+                m.put("txHash", d.getTxHash());
+                m.put("createdAt", d.getCreatedAt());
+                m.put("status", d.getStatus());
+                return m;
+            }).toList();
 
             Map<String, Object> result = Map.of(
-                "deposits", pending,
-                "count", pending.size()
+                "deposits", enriched,
+                "count", enriched.size()
             );
 
             return ResponseEntity.ok(ApiResponse.success(result));
@@ -84,6 +121,58 @@ public class DepositController {
                 .body(ApiResponse.<Map<String, Object>>builder()
                     .success(false)
                     .message("Failed to fetch pending deposits: " + e.getMessage())
+                    .build());
+        }
+    }
+
+    /**
+     * GET /api/admin/deposits/history
+     * Full paginated deposit history for admin UI (paginated)
+     */
+    @GetMapping("/history")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getDepositsHistory(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        try {
+            Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 500)));
+            var pageRes = walletTransactionRepository.findByTransactionTypeOrderByCreatedAtDesc(
+                WalletTransaction.TransactionType.DEPOSIT, pageable
+            );
+
+            var enriched = pageRes.getContent().stream().map(d -> {
+                var m = new java.util.HashMap<String, Object>();
+                m.put("id", d.getId());
+                m.put("userId", d.getUserId());
+                try {
+                    java.util.Optional<User> u = userRepository.findById(d.getUserId());
+                    m.put("username", u.map(User::getUsername).orElse(null));
+                } catch (Exception ex) {
+                    m.put("username", null);
+                }
+                m.put("amount", d.getAmount());
+                m.put("fromAddress", d.getFromAddress());
+                m.put("toAddress", d.getToAddress());
+                m.put("txHash", d.getTxHash());
+                m.put("createdAt", d.getCreatedAt());
+                m.put("status", d.getStatus());
+                return m;
+            }).toList();
+
+            Map<String, Object> result = Map.of(
+                "deposits", enriched,
+                "page", pageRes.getNumber(),
+                "size", pageRes.getSize(),
+                "totalElements", pageRes.getTotalElements(),
+                "totalPages", pageRes.getTotalPages()
+            );
+
+            return ResponseEntity.ok(ApiResponse.success(result));
+        } catch (Exception e) {
+            log.error("Error fetching deposit history", e);
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.<Map<String, Object>>builder()
+                    .success(false)
+                    .message("Failed to fetch deposit history: " + e.getMessage())
                     .build());
         }
     }

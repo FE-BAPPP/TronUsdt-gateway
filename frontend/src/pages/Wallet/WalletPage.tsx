@@ -247,7 +247,7 @@ function WalletOverview({ depositsData, withdrawalsData, onRefreshWithdrawals }:
                 <div key={index} className="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/10">
                   <div>
                     <div className="font-semibold text-white">{deposit.amount} USDT</div>
-                    <div className="text-sm text-gray-400">{new Date(deposit.createdAt).toLocaleDateString()}</div>
+                    <div className="text-sm text-gray-400">{deposit.username ? `${deposit.username} • ` : ''}{new Date(deposit.createdAt).toLocaleDateString()}</div>
                   </div>
                   <div className={`ui-badge ${statusBadge(deposit.status).className}`}>
                     {statusBadge(deposit.status).icon}
@@ -483,7 +483,7 @@ function DepositSection({ depositsData, loading, error, onRefresh }: any) {
                 <div key={idx} className="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/10">
                   <div>
                     <div className="font-semibold text-white">{d.amount} USDT</div>
-                    <div className="text-sm text-gray-400">{d.createdAt ? new Date(d.createdAt).toLocaleDateString() : ''}</div>
+                    <div className="text-sm text-gray-400">{d.username ? `${d.username} • ` : ''}{d.createdAt ? new Date(d.createdAt).toLocaleDateString() : ''}</div>
                   </div>
                   <div className={`ui-badge ${statusBadge(d.status).className}`}>
                     {statusBadge(d.status).icon}

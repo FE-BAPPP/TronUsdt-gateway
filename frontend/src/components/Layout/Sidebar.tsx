@@ -33,6 +33,7 @@ function buildNav(isAdmin: boolean) {
   // Admin extras
   if (isAdmin) {
     nav.push(
+      { name: "Users", href: `${base}/users`, icon: UserGroupIcon },
       { name: "Withdrawals", href: `${base}/withdrawals`, icon: ClockIcon },
       { name: "Tracking", href: `${base}/tracking`, icon: ChartBarIcon },
     )

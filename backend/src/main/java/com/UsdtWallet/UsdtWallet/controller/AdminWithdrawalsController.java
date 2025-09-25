@@ -2,6 +2,8 @@ package com.UsdtWallet.UsdtWallet.controller;
 
 import com.UsdtWallet.UsdtWallet.model.dto.response.ApiResponse;
 import com.UsdtWallet.UsdtWallet.model.entity.WithdrawalTransaction;
+import com.UsdtWallet.UsdtWallet.model.entity.User;
+import com.UsdtWallet.UsdtWallet.repository.UserRepository;
 import com.UsdtWallet.UsdtWallet.repository.WithdrawalTransactionRepository;
 import com.UsdtWallet.UsdtWallet.service.SystemMonitoringService;
 import com.UsdtWallet.UsdtWallet.service.WithdrawalQueueService;
@@ -25,6 +27,7 @@ public class AdminWithdrawalsController {
     private final WithdrawalTransactionRepository withdrawalRepository;
     private final WithdrawalQueueService withdrawalQueueService;
     private final SystemMonitoringService systemMonitoringService;
+    private final UserRepository userRepository;
 
     /**
      * GET /api/admin/withdrawals/recent
@@ -36,8 +39,31 @@ public class AdminWithdrawalsController {
             Pageable pageable = PageRequest.of(0, Math.max(1, Math.min(limit, 200)));
             var page = withdrawalRepository.findAllByOrderByCreatedAtDesc(pageable);
 
+            // Enrich withdrawals with username when available
+            var enriched = page.getContent().stream().map(w -> {
+                var m = new java.util.HashMap<String, Object>();
+                m.put("id", w.getId());
+                m.put("userId", w.getUserId());
+                // try to resolve username
+                try {
+                    java.util.Optional<User> u = userRepository.findById(w.getUserId());
+                    m.put("username", u.map(User::getUsername).orElse(null));
+                } catch (Exception ex) {
+                    m.put("username", null);
+                }
+                m.put("amount", w.getAmount());
+                m.put("netAmount", w.getNetAmount());
+                m.put("fee", w.getFee());
+                m.put("toAddress", w.getToAddress());
+                m.put("status", w.getStatus());
+                m.put("txHash", w.getTxHash());
+                m.put("createdAt", w.getCreatedAt());
+                m.put("updatedAt", w.getUpdatedAt());
+                return m;
+            }).toList();
+
             Map<String, Object> result = Map.of(
-                "withdrawals", page.getContent(),
+                "withdrawals", enriched,
                 "count", page.getNumberOfElements()
             );
 
@@ -64,8 +90,29 @@ public class AdminWithdrawalsController {
                 WithdrawalTransaction.WithdrawalStatus.FAILED, pageable
             );
 
+            var enriched = page.getContent().stream().map(w -> {
+                var m = new java.util.HashMap<String, Object>();
+                m.put("id", w.getId());
+                m.put("userId", w.getUserId());
+                try {
+                    java.util.Optional<User> u = userRepository.findById(w.getUserId());
+                    m.put("username", u.map(User::getUsername).orElse(null));
+                } catch (Exception ex) {
+                    m.put("username", null);
+                }
+                m.put("amount", w.getAmount());
+                m.put("netAmount", w.getNetAmount());
+                m.put("fee", w.getFee());
+                m.put("toAddress", w.getToAddress());
+                m.put("status", w.getStatus());
+                m.put("txHash", w.getTxHash());
+                m.put("createdAt", w.getCreatedAt());
+                m.put("updatedAt", w.getUpdatedAt());
+                return m;
+            }).toList();
+
             Map<String, Object> result = Map.of(
-                "withdrawals", page.getContent(),
+                "withdrawals", enriched,
                 "count", page.getNumberOfElements()
             );
 

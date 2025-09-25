@@ -11,6 +11,7 @@ import { ProfilePage } from "./pages/Profile/ProfilePage";
 import { AdminDashboardPage } from "./pages/Admin/AdminDashboardPage";
 import { AdminTrackingPage } from "./pages/Admin/AdminTrackingPage";
 import { AdminWithdrawalsPage } from "./pages/Admin/AdminWithdrawalsPage";
+import AdminUsersPage from "./pages/Admin/AdminUserPage"; // correct file name
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthContext, useAuthProvider } from "./hooks/useAuth";
 import { ForgotPassword } from "./pages/Auth/ForgotPassword";
@@ -88,6 +89,15 @@ function AppRoutes() {
         <ProtectedRoute requiredRole="ADMIN">
           <Layout>
             <AdminWithdrawalsPage />
+          </Layout>
+        </ProtectedRoute>
+      } />
+
+      {/* Admin Pages */}
+      <Route path="/admin/users" element={
+        <ProtectedRoute requiredRole="ADMIN">
+          <Layout>
+            <AdminUsersPage />
           </Layout>
         </ProtectedRoute>
       } />

@@ -21,6 +21,7 @@ export function Header(_props: HeaderProps) {
   const base = isAdmin ? '/admin' : '/user';
   const routes = {
     dashboard: `${base}/dashboard`,
+    users: `${base}/users`,
     wallet: `${base}/wallet`,
     transactions: `${base}/transactions`,
     p2p: `${base}/p2p`,
@@ -64,6 +65,18 @@ export function Header(_props: HeaderProps) {
                 }`}
               >
                 Wallet
+              </Link>
+            )}
+            {isAdmin && (
+              <Link
+                to={routes.users}
+                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                  isActive(routes.users)
+                    ? 'text-yellow-300 bg-yellow-400/20 border border-yellow-400/30'
+                    : 'text-gray-300 hover:text-white hover:bg-white/10 border border-transparent'
+                }`}
+              >
+                Users
               </Link>
             )}
             <Link

@@ -50,10 +50,18 @@ class AdminApiClient {
 
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
-        const data = await response.json();
+        const parsed = await response.json();
+        // If backend follows ApiResponse<T> shape, unwrap one level so callers get the inner data
+        if (parsed && typeof parsed === 'object' && ('success' in parsed) && ('data' in parsed)) {
+          return {
+            success: parsed.success === true,
+            data: parsed.data,
+            message: parsed.message || (parsed.success === true ? 'Success' : 'Error')
+          };
+        }
         return {
           success: true,
-          data,
+          data: parsed,
           message: 'Success'
         };
       } else {
@@ -124,10 +132,10 @@ class AdminApiClient {
     return this.request<any>(`/api/admin/users/${userId}`);
   }
 
-  async updateUserStatus(userId: string, status: string) {
+  async updateUserStatus(userId: string, body: any) {
     return this.request<any>(`/api/admin/users/${userId}/status`, {
       method: 'PUT',
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(body),
     });
   }
 
@@ -277,6 +285,23 @@ class AdminApiClient {
   async getPendingDeposits(limit = 50) {
     return this.request<any>(`/api/admin/deposits/pending?limit=${limit}`);
   }
+
+  // Per-user stats and histories (admin)
+  async getUserStats(userId: string) {
+    return this.request<any>(`/api/admin/users/${encodeURIComponent(userId)}/stats`);
+  }
+
+  async getUserDeposits(userId: string, page = 0, size = 50) {
+    return this.request<any>(`/api/admin/users/${encodeURIComponent(userId)}/deposits?page=${page}&size=${size}`);
+  }
+
+  async getUserWithdrawals(userId: string, page = 0, size = 50) {
+    return this.request<any>(`/api/admin/users/${encodeURIComponent(userId)}/withdrawals?page=${page}&size=${size}`);
+  }
+
+  async getDepositsHistory(page = 0, size = 20) {
+    return this.request<any>(`/api/admin/deposits/history?page=${page}&size=${size}`);
+  }
 }
 
 const adminApi = new AdminApiClient(API_BASE_URL);
@@ -288,7 +313,7 @@ export const getDashboardOverview = () => adminApi.getDashboardOverview();
 export const getWithdrawalsManagement = (params?: any) => adminApi.getWithdrawalsManagement(params);
 export const getAllUsers = (params?: any) => adminApi.getAllUsers(params);
 export const getUserDetails = (userId: string) => adminApi.getUserDetails(userId);
-export const updateUserStatus = (userId: string, status: string) => adminApi.updateUserStatus(userId, status);
+export const updateUserStatus = (userId: string, body: any) => adminApi.updateUserStatus(userId, body);
 export const getAllTransactions = (params?: any) => adminApi.getAllTransactions(params);
 export const approveWithdrawal = (withdrawalId: string) => adminApi.approveWithdrawal(withdrawalId);
 export const rejectWithdrawal = (withdrawalId: string, reason: string) => adminApi.rejectWithdrawal(withdrawalId, reason);
@@ -306,3 +331,7 @@ export const getSystemLogs = (params?: any) => adminApi.getSystemLogs(params);
 export const healthCheck = () => adminApi.healthCheck();
 export const getRecentDeposits = (limit?: number) => adminApi.getRecentDeposits(limit);
 export const getPendingDeposits = (limit?: number) => adminApi.getPendingDeposits(limit);
+export const getUserStats = (userId: string) => adminApi.getUserStats(userId);
+export const getUserDeposits = (userId: string, page?: number, size?: number) => adminApi.getUserDeposits(userId, page, size);
+export const getUserWithdrawals = (userId: string, page?: number, size?: number) => adminApi.getUserWithdrawals(userId, page, size);
+export const getDepositsHistory = (page?: number, size?: number) => adminApi.getDepositsHistory(page, size);

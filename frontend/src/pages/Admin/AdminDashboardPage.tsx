@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { adminApi } from '../../services/api';
+import { adminApi, authHelper } from '../../services/api';
 import { 
   Shield, 
   RefreshCw, 
@@ -33,6 +33,12 @@ export function AdminDashboardPage() {
   const [softWarn, setSoftWarn] = useState<string | null>(null);
 
   const fetchAdminData = async () => {
+    if (!authHelper.isAdminLoggedIn()) {
+      setSoftWarn('You are not logged in as admin. Sign in as admin to see dashboard data.');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError('');
