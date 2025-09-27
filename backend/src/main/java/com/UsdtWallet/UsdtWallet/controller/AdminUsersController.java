@@ -11,6 +11,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import com.UsdtWallet.UsdtWallet.model.entity.WalletTransaction;
+import java.math.BigDecimal;
 import com.UsdtWallet.UsdtWallet.repository.WalletTransactionRepository;
 import com.UsdtWallet.UsdtWallet.repository.WithdrawalTransactionRepository;
 
@@ -95,10 +97,25 @@ public class AdminUsersController {
         try {
             UUID uid = UUID.fromString(userId);
             Map<String, Object> stats = new HashMap<>();
-            // Deposits: total amount and count via WalletTransactionRepository
-            java.math.BigDecimal totalDeposits = walletTransactionRepository.sumAmountByUserIdAndTransactionTypeAndStatus(uid, com.UsdtWallet.UsdtWallet.model.entity.WalletTransaction.TransactionType.DEPOSIT, com.UsdtWallet.UsdtWallet.model.entity.WalletTransaction.TransactionStatus.CONFIRMED);
-            if (totalDeposits == null) totalDeposits = java.math.BigDecimal.ZERO;
-            long depositCount = walletTransactionRepository.countByUserIdAndTransactionType(uid, com.UsdtWallet.UsdtWallet.model.entity.WalletTransaction.TransactionType.DEPOSIT);
+            // Deposits: compute total amount across ALL statuses (confirmed + pending etc.) and count
+            BigDecimal totalDeposits = BigDecimal.ZERO;
+            long depositCount = 0L;
+            try {
+                List<WalletTransaction> txs = walletTransactionRepository.findByUserIdOrderByCreatedAtDesc(uid);
+                if (txs != null) {
+                    for (WalletTransaction wt : txs) {
+                        if (wt.getTransactionType() == WalletTransaction.TransactionType.DEPOSIT) {
+                            if (wt.getAmount() != null) totalDeposits = totalDeposits.add(wt.getAmount());
+                            depositCount++;
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                // Fallback to previous repository sum/count in case of any issues
+                java.math.BigDecimal pd = walletTransactionRepository.sumAmountByUserIdAndTransactionTypeAndStatus(uid, com.UsdtWallet.UsdtWallet.model.entity.WalletTransaction.TransactionType.DEPOSIT, com.UsdtWallet.UsdtWallet.model.entity.WalletTransaction.TransactionStatus.CONFIRMED);
+                if (pd != null) totalDeposits = pd;
+                depositCount = walletTransactionRepository.countByUserIdAndTransactionType(uid, com.UsdtWallet.UsdtWallet.model.entity.WalletTransaction.TransactionType.DEPOSIT);
+            }
             // Withdrawals: total amount and count via WithdrawalTransactionRepository
             java.math.BigDecimal totalWithdrawals = withdrawalTransactionRepository.sumAmountByUserId(uid);
             long withdrawalCount = withdrawalTransactionRepository.countByUserId(uid);

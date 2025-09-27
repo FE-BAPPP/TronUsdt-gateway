@@ -81,7 +81,7 @@ export function AdminUsersPage() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-2xl font-bold text-white">User Management</h2>
-              <p className="text-sm text-gray-400">Manage and review user accounts</p>
+              <p className="text-sm text-white/80">Manage and review user accounts</p>
             </div>
             <div className="flex items-center gap-3">
               <input
@@ -90,7 +90,7 @@ export function AdminUsersPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
-              <button className="ui-btn bg-violet-600/20 hover:bg-violet-600/30" onClick={() => load()}>Search</button>
+              <button className="ui-btn bg-violet-600/20 hover:bg-violet-600/30 px-4" onClick={() => load()}>Search</button>
             </div>
           </div>
 
@@ -98,7 +98,7 @@ export function AdminUsersPage() {
 
         <table className="w-full text-left text-sm divide-y divide-white/5">
           <thead>
-            <tr className="text-gray-400">
+            <tr className="text-white/80">
               <th className="pl-4">Username</th>
               <th>Email</th>
               <th>Role</th>
@@ -115,11 +115,11 @@ export function AdminUsersPage() {
               <tr key={u.id} className="hover:bg-white/3 transition-colors">
                 <td className="py-4 pl-4">
                   <div className="font-medium text-white">{u.username}</div>
-                  <div className="text-xs text-gray-400">ID: {u.id}</div>
+                  <div className="text-xs text-white/60">ID: {u.id}</div>
                 </td>
-                <td className="py-4 text-gray-300">{u.email}</td>
+                <td className="py-4 text-white/80">{u.email}</td>
                 <td className="py-4 text-sm">
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-white/5 text-gray-200">{u.role}</span>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-white/5 text-white/80">{u.role}</span>
                 </td>
                 <td className="py-4">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${u.isActive ? 'bg-green-600/20 text-green-200' : 'bg-red-600/20 text-red-200'}`}>{u.isActive ? 'Active' : 'Disabled'}</span>
@@ -129,7 +129,7 @@ export function AdminUsersPage() {
                     <button className={`px-3 py-1 rounded text-sm font-medium ${u.isActive ? 'bg-red-600/20 text-red-300' : 'bg-green-600/20 text-green-300'}`} onClick={() => toggleActive(u)}>
                       {u.isActive ? 'Disable' : 'Enable'}
                     </button>
-                    <button className="px-3 py-1 rounded text-sm border border-white/10" onClick={() => showStats(u)}>Details</button>
+                    <button className="px-3 py-1 rounded text-sm font-medium bg-white text-gray-900 hover:bg-gray-100 transition-colors" onClick={() => showStats(u)}>Details</button>
                   </div>
                 </td>
               </tr>
@@ -138,9 +138,9 @@ export function AdminUsersPage() {
         </table>
 
         <div className="mt-4 flex justify-between">
-          <button className="ui-btn bg-gray-600/20" onClick={() => setPage(Math.max(0, page - 1))}>Prev</button>
-          <div className="text-sm text-gray-400">Page {page + 1}</div>
-          <button className="ui-btn bg-gray-600/20" onClick={() => setPage(page + 1)}>Next</button>
+          <button className="ui-btn bg-gray-600/20 px-4" onClick={() => setPage(Math.max(0, page - 1))}>Prev</button>
+          <div className="text-sm text-white/60">Page {page + 1}</div>
+          <button className="ui-btn bg-gray-600/20 px-4" onClick={() => setPage(page + 1)}>Next</button>
         </div>
       </div>
       {/* Modal for user details/stats */}
@@ -154,17 +154,17 @@ export function AdminUsersPage() {
                 <button className="ui-btn ui-btn-ghost" onClick={() => setModalUser(null)}>Close</button>
               </div>
               <div className="ui-card-body">
-                <div className="mb-2 text-sm text-gray-300">Email: {modalUser.email}</div>
+                <div className="mb-2 text-sm text-white/80">Email: {modalUser.email}</div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-3 bg-white/5 rounded">
-                    <div className="text-xs text-gray-400">Deposits</div>
+                    <div className="text-xs text-white/80">Deposits</div>
                     <div className="text-white font-semibold text-lg">{modalUser._stats?.depositCount ?? 0}</div>
-                    <div className="text-sm text-gray-300">Total: {modalUser._stats?.totalDeposits ?? 0}</div>
+                    <div className="text-sm text-white/80">Total: {modalUser._stats?.totalDeposits ?? 0}</div>
                   </div>
                   <div className="p-3 bg-white/5 rounded">
-                    <div className="text-xs text-gray-400">Withdrawals</div>
+                    <div className="text-xs text-white/80">Withdrawals</div>
                     <div className="text-white font-semibold text-lg">{modalUser._stats?.withdrawalCount ?? 0}</div>
-                    <div className="text-sm text-gray-300">Total: {modalUser._stats?.totalWithdrawals ?? 0}</div>
+                    <div className="text-sm text-white/80">Total: {modalUser._stats?.totalWithdrawals ?? 0}</div>
                   </div>
                 </div>
               </div>

@@ -164,7 +164,7 @@ export function P2PPage() {
             className={`flex-1 py-3 px-4 rounded-xl transition-all duration-300 font-medium text-sm flex items-center justify-center gap-2 min-w-0 ${
               activeTab === tab.id
                 ? "bg-gradient-to-r from-yellow-500/20 to-yellow-400/20 text-yellow-300 border border-yellow-400/30 shadow-lg"
-                : "text-gray-300 hover:text-white hover:bg-white/10 border border-transparent"
+                : "text-gray-500 hover:text-white hover:bg-white/10 border border-transparent"
             }`}
           >
             <tab.icon className="w-4 h-4" />
@@ -189,7 +189,7 @@ export function P2PPage() {
 
             <form onSubmit={openPwdModal} className="space-y-6">
               <div>
-                <label className="block text-gray-300 text-sm font-medium mb-2 flex items-center gap-2">
+                <label className="block text-gray-500 text-sm font-medium mb-2 flex items-center gap-2">
                   <User className="w-4 h-4" />
                   Recipient User ID
                 </label>
@@ -204,7 +204,7 @@ export function P2PPage() {
               </div>
 
               <div>
-                <label className="block text-gray-300 text-sm font-medium mb-2 flex items-center gap-2">
+                <label className="block text-gray-500 text-sm font-medium mb-2 flex items-center gap-2">
                   <DollarSign className="w-4 h-4" />
                   Amount (Points)
                 </label>
@@ -218,11 +218,11 @@ export function P2PPage() {
                   placeholder="Enter amount"
                   required
                 />
-                <p className="text-gray-400 text-sm mt-1">Available: {pointsData?.balance?.balance || 0} points</p>
+                <p className="text-gray-500 text-sm mt-1">Available: {pointsData?.balance?.balance || 0} points</p>
               </div>
 
               <div>
-                <label className="block text-gray-300 text-sm font-medium mb-2 flex items-center gap-2">
+                <label className="block text-gray-500 text-sm font-medium mb-2 flex items-center gap-2">
                   <MessageSquare className="w-4 h-4" />
                   Description (Optional)
                 </label>
@@ -295,7 +295,7 @@ export function P2PPage() {
             <div className="absolute inset-0 backdrop-blur-xl border border-white/20 rounded-2xl"></div>
             <div className="relative z-10 p-6">
               <h3 className="text-white text-lg font-semibold mb-2">Confirm Password</h3>
-              <p className="text-gray-400 text-sm mb-4">Enter your login password to confirm this transfer.</p>
+              <p className="text-gray-500 text-sm mb-4">Enter your login password to confirm this transfer.</p>
               <input
                 type="password"
                 value={pwd}
@@ -305,7 +305,7 @@ export function P2PPage() {
               />
               {pwdMsg && <div className="text-sm text-red-400 mt-2">{pwdMsg}</div>}
               <div className="flex justify-end gap-2 mt-4">
-                <button onClick={() => setPwdOpen(false)} className="px-4 py-2 text-gray-300 hover:text-white">
+                <button onClick={() => setPwdOpen(false)} className="px-4 py-2 text-gray-500 hover:text-white">
                   Cancel
                 </button>
                 <button
@@ -459,17 +459,17 @@ export function P2PPage() {
                                 <p className="text-white font-semibold text-base">
                                   {isOutgoing ? "Sent to" : "Received from"} {full(showName || "ID unavailable")}
                                 </p>
-                                <p className="text-gray-400 text-sm">
+                                <p className="text-gray-800 text-sm">
                                   {pick("note", "description") ||
                                     (isOutgoing ? "P2P transfer sent" : "P2P transfer received")}
                                 </p>
                               </div>
                             </div>
                             <div className="pl-13 space-y-1">
-                              <p className="text-gray-500 text-sm">
+                              <p className="text-gray-700 text-sm">
                                 From: {full(String(fromLabel))} | To: {full(String(toLabel))}
                               </p>
-                              <p className="text-gray-500 text-sm flex items-center gap-2">
+                              <p className="text-gray-700 text-sm flex items-center gap-2">
                                 <Clock className="w-4 h-4" />
                                 {new Date(t.createdAt || t.time || Date.now()).toLocaleString()}
                               </p>
@@ -480,7 +480,7 @@ export function P2PPage() {
                               {isOutgoing ? "-" : "+"}
                               {absAmount}
                             </p>
-                            <p className="text-gray-400 text-sm font-medium">points</p>
+                            <p className="text-gray-800 text-sm font-medium">points</p>
                           </div>
                         </div>
                       </div>
@@ -490,10 +490,10 @@ export function P2PPage() {
               ) : (
                 <div className="text-center py-16">
                   <div className="w-20 h-20 rounded-2xl bg-gray-500/20 border border-gray-500/30 flex items-center justify-center mx-auto mb-6">
-                    <History className="w-10 h-10 text-gray-400" />
+                    <History className="w-10 h-10 text-gray-500" />
                   </div>
                   <h3 className="text-white font-semibold text-lg mb-2">No transfer history</h3>
-                  <p className="text-gray-400">Your point transfers will appear here</p>
+                  <p className="text-gray-500">Your point transfers will appear here</p>
                 </div>
               )}
             </div>
