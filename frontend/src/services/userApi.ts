@@ -1,7 +1,7 @@
 import { ApiResponse } from './api';
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://your-production-api.com' 
+  ? '' 
   : 'http://localhost:8080';
 
 class UserApiClient {
@@ -229,6 +229,28 @@ class UserApiClient {
   async healthCheck() {
     return this.request<any>('/api/test/health');
   }
+
+  async startTwoFactorSetup() {
+    return this.request<any>('/api/auth/2fa/setup', {
+      method: 'POST',
+    });
+  }
+
+  // Confirm enabling TwoFactor with code from authenticator
+  async enableTwoFactor(code: string) {
+    return this.request<any>('/api/auth/2fa/enable', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  }
+
+  // Disable TwoFactor (require password and optionally a code)
+  async disableTwoFactor(password: string, code?: string) {
+    return this.request<any>('/api/auth/2fa/disable', {
+      method: 'POST',
+      body: JSON.stringify({ password, code }),
+    });
+  }
 }
 
 const userApi = new UserApiClient(API_BASE_URL);
@@ -259,3 +281,8 @@ export const getTransactionDetails = (id: string) => userApi.getTransactionDetai
 export const getTransactionSummary = (days?: number) => userApi.getTransactionSummary(days);
 export const exportTransactions = (format?: 'csv' | 'xlsx') => userApi.exportTransactions(format);
 export const healthCheck = () => userApi.healthCheck();
+
+// TwoFactor exports
+export const startTwoFactorSetup = () => userApi.startTwoFactorSetup();
+export const confirmEnableTwoFactor = (code: string) => userApi.enableTwoFactor(code);
+export const disableTwoFactor = (password: string, code?: string) => userApi.disableTwoFactor(password, code);

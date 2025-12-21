@@ -9,6 +9,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer; // Import WebMvcConfigurer để cấu hình CORS
+import org.springframework.context.annotation.Bean;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.http.HttpMethod;
+import java.util.List;
 
 import com.UsdtWallet.UsdtWallet.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
@@ -22,63 +28,53 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        // Bật CORS cho toàn bộ ứng dụng
         http
-                .cors().and()  // Bật CORS
-                .csrf(csrf -> csrf.disable()) // Tắt CSRF (vì chúng ta sử dụng Stateless session)
+                .cors().and()
+                .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authz -> authz
-                        // Public endpoints - không cần authentication
+                        // Allow preflight globally
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // Public endpoints
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/check-username").permitAll()
                         .requestMatchers("/api/auth/check-email").permitAll()
-                        .requestMatchers("/api/auth/create-admin").permitAll() // Allow admin creation
-                        .requestMatchers("/api/auth/forgot-password").permitAll() // added
-                        .requestMatchers("/api/auth/reset-password").permitAll() // added
-                        .requestMatchers("/api/admin/wallet/**").permitAll() // Temporary for testing
-                        .requestMatchers("/api/test/**").permitAll() // Allow all test endpoints
-                        .requestMatchers("/api/dev/**").permitAll() // Allow dev endpoints for development
+                        .requestMatchers("/api/auth/create-admin").permitAll()
+                        .requestMatchers("/api/auth/forgot-password").permitAll()
+                        .requestMatchers("/api/auth/reset-password").permitAll()
 
-                        .requestMatchers("/api/notifications/stream").permitAll() // Allow SSE stream endpoint
-
-                        // Health check endpoints
+                        .requestMatchers("/api/test/**").permitAll()
+                        .requestMatchers("/api/dev/**").permitAll()
+                        .requestMatchers("/api/notifications/stream").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/health").permitAll()
-
-                        // API documentation endpoints
                         .requestMatchers("/v3/api-docs/**").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/swagger-ui.html").permitAll()
-
-                        // Static resources
                         .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                         .requestMatchers("/.well-known/**").permitAll()
-
-                        // All other requests require authentication
                         .anyRequest().authenticated()
                 );
 
-        // IMPORTANT: Only add JWT filter for endpoints that need authentication
-        // Skip JWT filter for public endpoints
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // Cấu hình CORS cho tất cả các API endpoint
+    // WebMvcConfigurer CORS là hữu ích cho MVC, nhưng Security cần CorsConfigurationSource -> cung cấp bean chung
     @Bean
-    public WebMvcConfigurer corsConfigurer() {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                // Cấu hình CORS cho các endpoint bắt đầu bằng /api/**
-                registry.addMapping("/api/**")
-                        .allowedOrigins("http://localhost:5173")  // Cho phép từ domain này (React frontend)
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                        .allowedHeaders("*")  // Cho phép mọi header
-                        .allowCredentials(true);  // Cho phép gửi cookie hoặc token authorization
-            }
-        };
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        // Dùng patterns để linh hoạt (cũng có thể dùng exact origins list)
+        config.setAllowedOriginPatterns(List.of("http://localhost:5173", "https://shopcong.io.vn", "https://api.shopcong.io.vn", "*"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 }

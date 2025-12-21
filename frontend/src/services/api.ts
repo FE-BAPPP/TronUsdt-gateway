@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'http://localhost:8080';
+export const API_BASE_URL = 'http://localhost:8080'
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -271,6 +271,28 @@ class UserApiClient extends BaseApiClient {
 
   async exportTransactions(format = 'csv') {
     return this.request<any>(`/api/transactions/export?format=${format}`);
+  }
+
+  async startTwoFactorSetup() {
+    return this.request<any>('/api/auth/2fa/setup', {
+      method: 'POST',
+    });
+  }
+
+  // Confirm enabling TwoFactor with code from authenticator
+  async enableTwoFactor(code: string) {
+    return this.request<any>('/api/auth/2fa/enable', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  }
+
+  // Disable TwoFactor (require password and optionally a code)
+  async disableTwoFactor(password: string, code?: string) {
+    return this.request<any>('/api/auth/2fa/disable', {
+      method: 'POST',
+      body: JSON.stringify({ password, code }),
+    });
   }
 }
 
