@@ -7,25 +7,24 @@ import lombok.Data;
 
 @Data
 public class UserRegistrationRequest {
-
     @NotBlank(message = "Username is required")
-    @Size(min = 3, max = 50, message = "Username must be between 3 and 50 characters")
+    @Size(min = 3, max = 50)
     private String username;
 
     @NotBlank(message = "Email is required")
-    @Email(message = "Email format is invalid")
+    @Email(message = "Invalid email format")
     private String email;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 6, max = 100, message = "Password must be between 6 and 100 characters")
+    @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
 
     @NotBlank(message = "Confirm password is required")
     private String confirmPassword;
 
-    @Size(max = 100, message = "Full name must not exceed 100 characters")
+    @NotBlank(message = "Full name is required")
     private String fullName;
 
-    @Size(max = 15, message = "Phone must not exceed 15 characters")
-    private String phone;
+    @NotBlank(message = "Role is required")
+    private String role; // "FREELANCER" hoặc "EMPLOYER"
 }

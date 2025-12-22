@@ -11,17 +11,26 @@ export interface ApiResponse<T> {
 class BaseApiClient {
   protected baseURL: string;
   protected token: string | null = null;
+  protected tokenKey: string = 'token';
 
-  constructor(baseURL: string) {
+  constructor(baseURL: string, tokenKey: string = 'token') {
     this.baseURL = baseURL;
+    this.tokenKey = tokenKey;
   }
 
   setToken(token: string) {
     this.token = token;
+    localStorage.setItem(this.tokenKey, token);
   }
 
   clearToken() {
     this.token = null;
+    localStorage.removeItem(this.tokenKey);
+  }
+
+  protected loadToken(): string | null {
+    // Override this method in subclasses for custom token loading logic
+    return localStorage.getItem(this.tokenKey);
   }
 
   protected async request<T>(
@@ -29,19 +38,25 @@ class BaseApiClient {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
+    
+    // ✅ FIX: Always reload token before each request
+    const token = this.loadToken();
+    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
     };
 
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
+    // ✅ FIX: Always add Authorization header if token exists
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
 
     try {
       const response = await fetch(url, {
         ...options,
         headers,
+        credentials: 'include', // ✅ FIX: Include credentials for cookies
       });
 
       const contentType = response.headers.get('content-type');
@@ -52,6 +67,21 @@ class BaseApiClient {
       } else {
         const text = await response.text();
         data = { message: text };
+      }
+
+      // ✅ FIX: Handle 401/403 errors with redirect
+      if (response.status === 401 || response.status === 403) {
+        this.clearToken();
+        if (typeof window !== 'undefined' && !endpoint.includes('/login')) {
+          // Redirect based on token type
+          const redirectPath = this.tokenKey === 'adminToken' ? '/admin/login' : '/login';
+          window.location.href = redirectPath;
+        }
+        return {
+          success: false,
+          message: 'Session expired. Please login again.',
+          error: 'UNAUTHORIZED'
+        };
       }
 
       if (!response.ok) {
@@ -80,19 +110,7 @@ class BaseApiClient {
 // USER API CLIENT - Dành riêng cho user endpoints
 class UserApiClient extends BaseApiClient {
   constructor() {
-    super(API_BASE_URL);
-    // Auto load user token from localStorage
-    this.token = localStorage.getItem('userToken');
-  }
-
-  setToken(token: string) {
-    super.setToken(token);
-    localStorage.setItem('userToken', token);
-  }
-
-  clearToken() {
-    super.clearToken();
-    localStorage.removeItem('userToken');
+    super(API_BASE_URL, 'userToken');
   }
 
   // 1. Authentication APIs
@@ -294,24 +312,45 @@ class UserApiClient extends BaseApiClient {
       body: JSON.stringify({ password, code }),
     });
   }
+
+  // 🆕 Freelancer Profile APIs
+  async getFreelancerProfile() {
+    return this.request<any>('/api/freelancer/profile');
+  }
+
+  async updateFreelancerProfile(data: {
+    professionalTitle?: string;
+    bio?: string;
+    hourlyRate?: number;
+    availability?: string;
+    portfolioUrl?: string;
+    linkedinUrl?: string;
+    githubUrl?: string;
+  }) {
+    return this.request<any>('/api/freelancer/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getFreelancerProfileById(freelancerId: string) {
+    return this.request<any>(`/api/freelancer/profile/${freelancerId}`);
+  }
 }
 
 // ADMIN API CLIENT - Dành riêng cho admin endpoints  
 class AdminApiClient extends BaseApiClient {
   constructor() {
-    super(API_BASE_URL);
-    // Auto load admin token from localStorage
-    this.token = localStorage.getItem('adminToken');
+    super(API_BASE_URL, 'adminToken');
   }
 
-  setToken(token: string) {
-    super.setToken(token);
-    localStorage.setItem('adminToken', token);
-  }
-
-  clearToken() {
-    super.clearToken();
-    localStorage.removeItem('adminToken');
+  // ✅ FIX: Override loadToken to check multiple token sources with proper priority
+  protected loadToken(): string | null {
+    return (
+      localStorage.getItem('adminToken') ||
+      localStorage.getItem('userToken') ||
+      localStorage.getItem('token')
+    );
   }
 
   // Admin Authentication (if separate from user)
@@ -323,9 +362,17 @@ class AdminApiClient extends BaseApiClient {
     
     if (response.success && response.data?.token) {
       this.setToken(response.data.token);
+      if (response.data.user) {
+        localStorage.setItem('adminProfile', JSON.stringify(response.data.user));
+      }
     }
     
     return response;
+  }
+
+  clearToken() {
+    super.clearToken();
+    localStorage.removeItem('adminProfile');
   }
 
   // Admin Endpoints
@@ -520,4 +567,108 @@ export const authHelper = {
   getAdminToken(): string | null {
     return localStorage.getItem('adminToken');
   }
+}
+
+// 🆕 Generic API request helper (uses current user token)
+async function apiRequest<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<ApiResponse<T>> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  // ✅ Load token from userToken first, fallback to adminToken
+  const token = localStorage.getItem('userToken') || localStorage.getItem('adminToken');
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: 'include',
+    });
+
+    const contentType = response.headers.get('content-type');
+    let data;
+    
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      data = { message: text };
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      if (typeof window !== 'undefined' && !endpoint.includes('/login')) {
+        window.location.href = '/login';
+      }
+      return {
+        success: false,
+        message: 'Session expired. Please login again.',
+        error: 'UNAUTHORIZED'
+      };
+    }
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: data.message || `HTTP ${response.status}`,
+        error: data.error
+      };
+    }
+
+    return {
+      success: true,
+      data: data.data || data,
+      message: data.message || 'Success'
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: error.message || 'Network error',
+      error: error.message
+    };
+  }
+}
+
+// 🆕 Project & Milestone APIs (UPDATED)
+export const projectApi = {
+  // Get employer's projects
+  async getEmployerProjects(page = 0, size = 20) {
+    return apiRequest<any>(`/api/projects/employer?page=${page}&size=${size}`);
+  },
+
+  // Get freelancer's projects
+  async getFreelancerProjects(page = 0, size = 20) {
+    return apiRequest<any>(`/api/projects/freelancer?page=${page}&size=${size}`);
+  },
+
+  // Get project details
+  async getProjectById(projectId: string) {
+    return apiRequest<any>(`/api/projects/${projectId}`);
+  },
+
+  // Get project milestones
+  async getProjectMilestones(projectId: string) {
+    return apiRequest<any>(`/api/milestones/project/${projectId}`);
+  },
+
+  // Release milestone (Employer only)
+  async releaseMilestone(milestoneId: string) {
+    return apiRequest<any>(`/api/milestones/${milestoneId}/release`, {
+      method: 'POST',
+    });
+  },
+
+  // Get milestone stats
+  async getMilestoneStats(projectId: string) {
+    return apiRequest<any>(`/api/milestones/project/${projectId}/stats`);
+  },
 };

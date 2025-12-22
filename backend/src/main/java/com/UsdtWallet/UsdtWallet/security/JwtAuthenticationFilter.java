@@ -57,7 +57,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
 
         String requestPath = request.getRequestURI();
-
         log.debug("Processing request: {} {}", request.getMethod(), requestPath);
 
         // Skip JWT processing for public endpoints
@@ -69,6 +68,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             String jwt = getJwtFromRequest(request);
+            
+            // ✅ FIX: For SSE endpoint, try to get token from query parameter
+            if (!StringUtils.hasText(jwt) && requestPath.contains("/notifications/stream")) {
+                jwt = request.getParameter("token");
+                log.debug("SSE endpoint - JWT from query param: {}", jwt != null ? "Yes" : "No");
+            }
+            
             log.debug("JWT token found: {}", jwt != null ? "Yes" : "No");
 
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
@@ -86,7 +92,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     if (userEntity != null && userEntity.getPasswordChangedAt() != null) {
                         Date iat = tokenProvider.getIssuedAtDate(jwt);
                         if (iat == null || iat.toInstant().isBefore(userEntity.getPasswordChangedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())) {
-                            // Old token; don't authenticate
                             filterChain.doFilter(request, response);
                             return;
                         }

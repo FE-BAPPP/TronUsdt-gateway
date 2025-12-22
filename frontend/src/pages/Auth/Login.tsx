@@ -9,7 +9,7 @@ import { LogIn, User, Lock, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-rea
 
 export function Login() {
   const navigate = useNavigate()
-  const { login, isLoggedIn, isUser, isAdmin } = useAuth()
+  const { login, isLoggedIn, role } = useAuth() // 🆕 Use role from useAuth
 
   const [formData, setFormData] = useState({
     username: "",
@@ -19,15 +19,27 @@ export function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
+  // 🆕 FIX: Redirect based on actual role (including FREELANCER/EMPLOYER)
   useEffect(() => {
-    if (isLoggedIn) {
-      if (isAdmin) {
-        navigate("/admin/dashboard", { replace: true })
-      } else if (isUser) {
-        navigate("/user/dashboard", { replace: true })
+    if (isLoggedIn && role) {
+      switch (role) {
+        case 'ADMIN':
+          navigate("/admin/dashboard", { replace: true })
+          break
+        case 'FREELANCER':
+          navigate("/freelancer/dashboard", { replace: true })
+          break
+        case 'EMPLOYER':
+          navigate("/employer/dashboard", { replace: true })
+          break
+        case 'USER':
+          navigate("/user/dashboard", { replace: true })
+          break
+        default:
+          navigate("/login", { replace: true })
       }
     }
-  }, [isLoggedIn, isAdmin, isUser, navigate])
+  }, [isLoggedIn, role, navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,7 +48,7 @@ export function Login() {
 
     try {
       await login(formData.username, formData.password)
-      // Navigation will be handled by useEffect
+      // Navigation will be handled by useEffect above
     } catch (err: any) {
       setError(err.message || "Login failed")
     } finally {

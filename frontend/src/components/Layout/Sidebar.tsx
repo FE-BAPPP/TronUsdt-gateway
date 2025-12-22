@@ -14,13 +14,14 @@ import {
 import { motion, AnimatePresence } from "framer-motion"
 import clsx from "clsx"
 import { useAuth } from "../../hooks/useAuth"
+import { FolderOpen } from "lucide-react" // Add import
 
 interface SidebarProps {
   isOpen: boolean
   onClose: () => void
 }
 
-function buildNav(isAdmin: boolean) {
+function buildNav(isAdmin: boolean, role?: string) {
   const base = isAdmin ? "/admin" : "/user"
   const nav = [{ name: "Dashboard", href: `${base}/dashboard`, icon: HomeIcon }]
   if (!isAdmin) {
@@ -45,6 +46,16 @@ function buildNav(isAdmin: boolean) {
     { name: "Security", href: `${base}/profile`, icon: ShieldCheckIcon },
     { name: "Settings", href: `${base}/profile`, icon: CogIcon },
   ]
+
+  // 🆕 ADD: Projects link for Employer & Freelancer
+  if (role === "EMPLOYER" || role === "FREELANCER") {
+    nav.push({
+      name: "Projects",
+      href: "/projects",
+      icon: FolderOpen,
+    })
+  }
+
   return { nav, settings }
 }
 

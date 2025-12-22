@@ -85,6 +85,9 @@ public class PointsLedger {
         P2P_SEND,         // Send points to another user
         P2P_RECEIVE,      // Receive points from another user
         WITHDRAWAL_DEBIT, // Points → USDT withdrawal
+        ESCROW_LOCK,      // 🆕 Lock funds for project
+        ESCROW_RELEASE,   // 🆕 Release funds to freelancer
+        ESCROW_REFUND,    // 🆕 Refund to employer (if project cancelled)
         ADJUSTMENT,       // Manual adjustment by admin
         BONUS,           // Promotional bonus
         REFUND           // Refund transaction

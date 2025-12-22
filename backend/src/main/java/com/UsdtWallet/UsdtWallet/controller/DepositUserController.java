@@ -20,7 +20,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/deposits")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+@PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('FREELANCER') or hasRole('EMPLOYER')")
 public class DepositUserController {
 
     private final WalletTransactionService walletTransactionService;

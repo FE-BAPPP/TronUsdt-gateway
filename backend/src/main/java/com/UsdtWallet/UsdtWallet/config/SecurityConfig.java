@@ -15,6 +15,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.http.HttpMethod;
 import java.util.List;
+import java.util.Arrays;
 
 import com.UsdtWallet.UsdtWallet.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
@@ -63,18 +64,20 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // WebMvcConfigurer CORS là hữu ích cho MVC, nhưng Security cần CorsConfigurationSource -> cung cấp bean chung
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration config = new CorsConfiguration();
-        // Dùng patterns để linh hoạt (cũng có thể dùng exact origins list)
-        config.setAllowedOriginPatterns(List.of("http://localhost:5173", "https://shopcong.io.vn", "https://api.shopcong.io.vn", "*"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true);
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173", "http://localhost:3000"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
+
+        // ✅ FIX: Add exposed headers for SSE
+        configuration.setExposedHeaders(Arrays.asList("Content-Type", "Cache-Control"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
+        source.registerCorsConfiguration("/**", configuration);
         return source;
     }
 }

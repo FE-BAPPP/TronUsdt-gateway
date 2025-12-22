@@ -404,13 +404,15 @@ public class PointsService {
     }
 
     /**
-     * Available balance = latest COMPLETED balance - pending withdrawal locks
+     * Available balance = current balance - pending withdrawal locks - pending escrow locks
      */
     public BigDecimal getAvailableBalance(UUID userId) {
         BigDecimal current = getCurrentBalance(userId);
-        BigDecimal pendingLocks = pointsLedgerRepository.getTotalPendingWithdrawalLocks(userId);
-        // pendingLocks is negative values summed, e.g. -100 => subtracting a negative equals adding
-        return current.add(pendingLocks); // because locks are negative amounts
+        BigDecimal pendingWithdrawals = pointsLedgerRepository.getTotalPendingWithdrawalLocks(userId);
+        BigDecimal pendingEscrows = pointsLedgerRepository.getTotalPendingEscrowLocks(userId);
+        
+        // Both locks are negative, so adding them reduces available balance
+        return current.add(pendingWithdrawals).add(pendingEscrows);
     }
 
     /**
@@ -487,5 +489,108 @@ public class PointsService {
         }
         // Close lock if present
         unlockPointsForWithdrawal(userId, withdrawalId);
+    }
+
+    /**
+     * Lock points for project escrow
+     */
+    @Transactional
+    public boolean lockPointsForProject(UUID userId, BigDecimal amount, String projectId) {
+        String lockTxId = "PROJECT_ESCROW_" + projectId;
+        
+        // Check if already locked
+        if (pointsLedgerRepository.existsByTransactionId(lockTxId)) {
+            log.info("Escrow lock already exists: {}", lockTxId);
+            return true;
+        }
+        
+        // Check available balance
+        BigDecimal available = getAvailableBalance(userId);
+        if (available.compareTo(amount) < 0) {
+            throw new RuntimeException("Insufficient available balance for escrow lock");
+        }
+        
+        // Create PENDING lock entry
+        PointsLedger lockEntry = PointsLedger.builder()
+            .userId(userId)
+            .transactionId(lockTxId)
+            .transactionType(PointsLedger.PointsTransactionType.ESCROW_LOCK)
+            .amount(amount.negate()) // Negative for lock
+            .balanceBefore(getCurrentBalance(userId))
+            .balanceAfter(getCurrentBalance(userId)) // Balance unchanged (just locked)
+            .description("Escrow lock for project " + projectId)
+            .status(PointsLedger.PointsTransactionStatus.PENDING)
+            .build();
+        
+        pointsLedgerRepository.save(lockEntry);
+        log.info("✅ Locked {} points for project {} (txId={})", amount, projectId, lockTxId);
+        
+        // Invalidate cache
+        updateBalanceCache(userId, getCurrentBalance(userId));
+        
+        return true;
+    }
+
+    /**
+     * Release escrow funds to freelancer
+     */
+    @Transactional
+    public boolean releaseEscrowToFreelancer(UUID employerId, UUID freelancerId, 
+                                        BigDecimal amount, String projectId) {
+        String lockTxId = "PROJECT_ESCROW_" + projectId;
+        String releaseTxId = "ESCROW_RELEASE_" + projectId + "_" + System.currentTimeMillis();
+        
+        // 1. Close the lock (mark as COMPLETED)
+        Optional<PointsLedger> lockOpt = pointsLedgerRepository.findFirstByTransactionId(lockTxId);
+        if (lockOpt.isPresent()) {
+            PointsLedger lock = lockOpt.get();
+            if (lock.getStatus() == PointsLedger.PointsTransactionStatus.PENDING) {
+                lock.setStatus(PointsLedger.PointsTransactionStatus.COMPLETED);
+                pointsLedgerRepository.save(lock);
+            }
+        }
+        
+        // 2. Deduct from employer
+        BigDecimal employerBalance = getCurrentBalance(employerId);
+        BigDecimal employerNewBalance = employerBalance.subtract(amount);
+        
+        PointsLedger employerDebit = PointsLedger.builder()
+            .userId(employerId)
+            .transactionId(releaseTxId + "_DEBIT")
+            .transactionType(PointsLedger.PointsTransactionType.ESCROW_RELEASE)
+            .amount(amount.negate())
+            .balanceBefore(employerBalance)
+            .balanceAfter(employerNewBalance)
+            .toUserId(freelancerId)
+            .description("Payment released to freelancer for project " + projectId)
+            .status(PointsLedger.PointsTransactionStatus.COMPLETED)
+            .build();
+        
+        pointsLedgerRepository.save(employerDebit);
+        updateBalanceCache(employerId, employerNewBalance);
+        
+        // 3. Credit to freelancer
+        BigDecimal freelancerBalance = getCurrentBalance(freelancerId);
+        BigDecimal freelancerNewBalance = freelancerBalance.add(amount);
+        
+        PointsLedger freelancerCredit = PointsLedger.builder()
+            .userId(freelancerId)
+            .transactionId(releaseTxId + "_CREDIT")
+            .transactionType(PointsLedger.PointsTransactionType.ESCROW_RELEASE)
+            .amount(amount)
+            .balanceBefore(freelancerBalance)
+            .balanceAfter(freelancerNewBalance)
+            .fromUserId(employerId)
+            .description("Payment received for project " + projectId)
+            .status(PointsLedger.PointsTransactionStatus.COMPLETED)
+            .build();
+        
+        pointsLedgerRepository.save(freelancerCredit);
+        updateBalanceCache(freelancerId, freelancerNewBalance);
+        
+        log.info("✅ Escrow released: {} USDT from {} to {} for project {}", 
+            amount, employerId, freelancerId, projectId);
+        
+        return true;
     }
 }

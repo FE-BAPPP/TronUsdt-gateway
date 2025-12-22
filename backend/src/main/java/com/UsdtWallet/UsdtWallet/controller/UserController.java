@@ -207,6 +207,15 @@ public class UserController {
 
             if (walletAddress != null) {
                 Map<String, Object> result = userService.getUserWalletInfo(userPrincipal.getId());
+                
+                // ✅ FIX: Thêm address vào response
+                if (!result.containsKey("address")) {
+                    result.put("address", walletAddress);
+                }
+                if (!result.containsKey("walletAddress")) {
+                    result.put("walletAddress", walletAddress);
+                }
+                
                 return ResponseEntity.ok(ApiResponse.success(result));
             } else {
                 return ResponseEntity.badRequest()
@@ -228,12 +237,22 @@ public class UserController {
 
     /**
      * Get user deposit address for QR code
+     * ✅ FIX: Allow all authenticated roles (USER, ADMIN, FREELANCER, EMPLOYER)
      */
     @GetMapping("/deposit-address")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getDepositAddress(
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
         try {
+            // ✅ Get wallet address from user service (works for all roles)
             String walletAddress = userService.getUserWalletAddress(userPrincipal.getId());
+
+            if (walletAddress == null || walletAddress.isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(ApiResponse.<Map<String, Object>>builder()
+                        .success(false)
+                        .message("No wallet address assigned to this user")
+                        .build());
+            }
 
             Map<String, Object> result = Map.of(
                 "userId", userPrincipal.getId().toString(),
@@ -246,7 +265,7 @@ public class UserController {
             return ResponseEntity.ok(ApiResponse.success(result));
 
         } catch (Exception e) {
-            log.error("Error getting deposit address: {}", e.getMessage());
+            log.error("Error getting deposit address for user {}: {}", userPrincipal.getId(), e.getMessage());
             return ResponseEntity.badRequest()
                 .body(ApiResponse.<Map<String, Object>>builder()
                     .success(false)

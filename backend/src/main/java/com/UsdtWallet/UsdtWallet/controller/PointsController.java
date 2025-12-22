@@ -19,11 +19,13 @@ import java.util.Map;
 
 import org.springframework.security.crypto.password.PasswordEncoder; // added
 import com.UsdtWallet.UsdtWallet.repository.UserRepository; // added
+import org.springframework.security.access.prepost.PreAuthorize; // added
 
 @RestController
 @RequestMapping("/api/points")
 @RequiredArgsConstructor
 @Slf4j
+@PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('FREELANCER') or hasRole('EMPLOYER')") // ✅ ADD THIS
 public class PointsController {
 
     private final PointsService pointsService;

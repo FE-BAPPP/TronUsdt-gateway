@@ -81,4 +81,9 @@ public interface PointsLedgerRepository extends JpaRepository<PointsLedger, Stri
     @Query("SELECT COALESCE(SUM(pl.amount), 0) FROM PointsLedger pl WHERE pl.userId = :userId " +
            "AND pl.transactionType = 'WITHDRAWAL_DEBIT' AND pl.status = 'PENDING'")
        BigDecimal getTotalPendingWithdrawalLocks(@Param("userId") UUID userId);
+
+    // Get total PENDING escrow locks for employer (to calculate available balance)
+    @Query("SELECT COALESCE(SUM(pl.amount), 0) FROM PointsLedger pl WHERE pl.userId = :userId " +
+           "AND pl.transactionType = 'ESCROW_LOCK' AND pl.status = 'PENDING'")
+    BigDecimal getTotalPendingEscrowLocks(@Param("userId") UUID userId);
 }

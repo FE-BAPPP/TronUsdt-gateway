@@ -4,13 +4,13 @@ import { useAuth } from './useAuth';
 
 // Fetch wallet summary (usdtBalance, pointsBalance)
 export function useWallet() {
-  const { isUser } = useAuth();
+  const { isLoggedIn } = useAuth(); // ← CHANGE: isUser → isLoggedIn
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
-    if (!isUser) { setLoading(false); return; }
+    if (!isLoggedIn) { setLoading(false); return; } // ← CHANGE
     try {
       setLoading(true);
       setError(null);
@@ -21,6 +21,12 @@ export function useWallet() {
       ]);
       if (!walletRes.success) throw new Error(walletRes.message || 'Wallet load failed');
       const result: any = walletRes.data || {};
+      
+      // ✅ Ensure address is always included
+      if (walletRes.data?.address) result.address = walletRes.data.address;
+      if (walletRes.data?.walletAddress) result.walletAddress = walletRes.data.walletAddress;
+      if (walletRes.data?.depositAddress) result.depositAddress = walletRes.data.depositAddress;
+      
       // Merge points balance as source of truth (with available/locked)
       if (pointsRes.success && pointsRes.data) {
         const pb = pointsRes.data.balance ?? pointsRes.data.points ?? pointsRes.data;
@@ -39,20 +45,20 @@ export function useWallet() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [isUser]);
+  useEffect(() => { fetchData(); }, [isLoggedIn]); // ← CHANGE
 
   return { data, loading, error, refetch: fetchData };
 }
 
 // Deposits: history + pending + address
 export function useDeposits(page = 0, size = 10) {
-  const { isUser } = useAuth();
+  const { isLoggedIn } = useAuth(); // ← CHANGE
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
-    if (!isUser) { setLoading(false); return; }
+    if (!isLoggedIn) { setLoading(false); return; } // ← CHANGE
     try {
       setLoading(true);
       setError(null);
@@ -74,20 +80,20 @@ export function useDeposits(page = 0, size = 10) {
     }
   };
 
-  useEffect(() => { fetchData(); }, [isUser, page, size]);
+  useEffect(() => { fetchData(); }, [isLoggedIn, page, size]); // ← CHANGE
 
   return { data, loading, error, refetch: fetchData };
 }
 
 // Withdrawals: history + limits
 export function useWithdrawals(page = 0, size = 10) {
-  const { isUser } = useAuth();
+  const { isLoggedIn } = useAuth(); // ← CHANGE
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
-    if (!isUser) { setLoading(false); return; }
+    if (!isLoggedIn) { setLoading(false); return; } // ← CHANGE
     try {
       setLoading(true);
       setError(null);
@@ -116,20 +122,20 @@ export function useWithdrawals(page = 0, size = 10) {
     }
   };
 
-  useEffect(() => { fetchData(); }, [isUser, page, size]);
+  useEffect(() => { fetchData(); }, [isLoggedIn, page, size]); // ← CHANGE
 
   return { data, loading, error, refetch: fetchData };
 }
 
 // Transactions: all
 export function useTransactions(page = 0, size = 10) {
-  const { isUser } = useAuth();
+  const { isLoggedIn } = useAuth(); // ← CHANGE
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
-    if (!isUser) { setLoading(false); return; }
+    if (!isLoggedIn) { setLoading(false); return; } // ← CHANGE
     try {
       setLoading(true);
       setError(null);
@@ -143,20 +149,20 @@ export function useTransactions(page = 0, size = 10) {
     }
   };
 
-  useEffect(() => { fetchData(); }, [isUser, page, size]);
+  useEffect(() => { fetchData(); }, [isLoggedIn, page, size]); // ← CHANGE
 
   return { data, loading, error, refetch: fetchData };
 }
 
 // Withdrawal history only
 export function useWithdrawalHistory(page = 0, size = 20) {
-  const { isUser } = useAuth();
+  const { isLoggedIn } = useAuth(); // ← CHANGE
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
-    if (!isUser) { setLoading(false); return; }
+    if (!isLoggedIn) { setLoading(false); return; } // ← CHANGE
     try {
       setLoading(true);
       setError(null);
@@ -180,24 +186,24 @@ export function useWithdrawalHistory(page = 0, size = 20) {
     }
   };
 
-  useEffect(() => { fetchData(); }, [isUser, page, size]);
+  useEffect(() => { fetchData(); }, [isLoggedIn, page, size]); // ← CHANGE
 
   return { data, loading, error, refetch: fetchData };
 }
 
 // Points: balance + history
 export function usePoints() {
-  const { isUser } = useAuth();
+  const { isLoggedIn } = useAuth(); // ← CHANGE
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
-    if (!isUser) { setLoading(false); return; }
+    if (!isLoggedIn) { setLoading(false); return; } // ← CHANGE
     try {
       setLoading(true);
       setError(null);
-  const [balanceRes, historyRes] = await Promise.all([
+      const [balanceRes, historyRes] = await Promise.all([
         userApi.getPointsBalance(),
         userApi.getP2PHistory(),
       ]);
@@ -221,7 +227,7 @@ export function usePoints() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [isUser]);
+  useEffect(() => { fetchData(); }, [isLoggedIn]); // ← CHANGE
 
   return { data, loading, error, refetch: fetchData };
 }

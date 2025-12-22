@@ -10,17 +10,33 @@ class AdminApiClient {
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
-    this.token = localStorage.getItem('adminToken');
+    // ✅ FIX: Load token with proper priority
+    this.loadToken();
+  }
+
+  private loadToken() {
+    this.token = 
+      localStorage.getItem('adminToken') || 
+      localStorage.getItem('userToken') ||
+      localStorage.getItem('token');
+    
+    if (this.token) {
+      console.log('🔑 Token loaded:', this.token.substring(0, 20) + '...');
+    } else {
+      console.warn('⚠️ No token found in localStorage');
+    }
   }
 
   setToken(token: string) {
     this.token = token;
     localStorage.setItem('adminToken', token);
+    console.log('✅ Admin token saved to localStorage');
   }
 
   clearToken() {
     this.token = null;
     localStorage.removeItem('adminToken');
+    console.log('🗑️ Admin token cleared');
   }
 
   private async request<T>(
@@ -28,56 +44,67 @@ class AdminApiClient {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
+    
+    // ✅ FIX: Load token TRƯỚC KHI tạo headers
+    this.loadToken();
+    
+    // ✅ FIX: Đảm bảo có token từ localStorage nếu this.token null
+    const token = this.token || 
+                  localStorage.getItem('adminToken') || 
+                  localStorage.getItem('userToken') ||
+                  localStorage.getItem('token');
+    
+    // ✅ FIX: Nếu không có token, redirect NGAY TRƯỚC fetch
+    if (!token) {
+      console.error('❌ No authentication token found for:', endpoint);
+      if (typeof window !== 'undefined' && !endpoint.includes('/login')) {
+        window.location.href = '/admin/login';
+      }
+      throw new Error('No authentication token found');
+    }
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`, // ✅ LUÔN set Authorization header
       ...(options.headers as Record<string, string>),
     };
 
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
-    }
+    console.log('🔑 Request:', endpoint, '| Token:', token.substring(0, 20) + '...');
 
     try {
       const response = await fetch(url, {
         ...options,
         headers,
+        credentials: 'include',
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        console.error('❌ API Error:', {
+          status: response.status,
+          endpoint,
+          body: errorText
+        });
+        
+        if (response.status === 401 || response.status === 403) {
+          this.clearToken();
+          localStorage.removeItem('adminProfile');
+          
+          if (typeof window !== 'undefined') {
+            window.location.href = '/admin/login';
+          }
+          
+          throw new Error('Session expired. Please login again.');
+        }
+        
+        throw new Error(errorText || `HTTP error! status: ${response.status}`);
       }
 
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        const parsed = await response.json();
-        // If backend follows ApiResponse<T> shape, unwrap one level so callers get the inner data
-        if (parsed && typeof parsed === 'object' && ('success' in parsed) && ('data' in parsed)) {
-          return {
-            success: parsed.success === true,
-            data: parsed.data,
-            message: parsed.message || (parsed.success === true ? 'Success' : 'Error')
-          };
-        }
-        return {
-          success: true,
-          data: parsed,
-          message: 'Success'
-        };
-      } else {
-        const text = await response.text();
-        return {
-          success: true,
-          data: text as any,
-          message: 'Success'
-        };
-      }
+      const data = await response.json();
+      return data;
     } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || 'Network error',
-        message: error.message || 'Network error'
-      };
+      console.error('❌ Request Failed:', endpoint, error.message);
+      throw error;
     }
   }
 
@@ -89,7 +116,20 @@ class AdminApiClient {
     });
     
     if (response.success && response.data?.token) {
+      console.log('✅ Admin login successful');
       this.setToken(response.data.token);
+      
+      // ✅ VERIFY: Check token was actually saved
+      const savedToken = localStorage.getItem('adminToken');
+      console.log('✅ Token verification:', savedToken?.substring(0, 20) + '...');
+      
+      if (response.data.user) {
+        localStorage.setItem('adminProfile', JSON.stringify(response.data.user));
+        console.log('👤 Admin profile saved:', response.data.user.username);
+      }
+    } else {
+      console.error('❌ Admin login failed:', response);
+      throw new Error(response.message || 'Login failed');
     }
     
     return response;
@@ -105,7 +145,9 @@ class AdminApiClient {
     size?: number;
   } = {}) {
     const { page = 0, size = 20 } = params;
-    return this.request<any>(`/api/admin/dashboard/withdrawals?page=${page}&size=${size}`);
+    // FIX: Backend doesn't have /api/admin/dashboard/withdrawals
+    // Use /api/admin/withdrawals/recent instead
+    return this.request<any>(`/api/admin/withdrawals/recent?limit=${size}`);
   }
 
   async getDepositScanStats() {
@@ -302,6 +344,12 @@ class AdminApiClient {
   async getDepositsHistory(page = 0, size = 20) {
     return this.request<any>(`/api/admin/deposits/history?page=${page}&size=${size}`);
   }
+
+  async resetDepositScan() {
+    return this.request<any>('/api/admin/dashboard/deposit/scan/reset', {
+      method: 'POST',
+    });
+  }
 }
 
 const adminApi = new AdminApiClient(API_BASE_URL);
@@ -335,3 +383,4 @@ export const getUserStats = (userId: string) => adminApi.getUserStats(userId);
 export const getUserDeposits = (userId: string, page?: number, size?: number) => adminApi.getUserDeposits(userId, page, size);
 export const getUserWithdrawals = (userId: string, page?: number, size?: number) => adminApi.getUserWithdrawals(userId, page, size);
 export const getDepositsHistory = (page?: number, size?: number) => adminApi.getDepositsHistory(page, size);
+export const resetDepositScan = () => adminApi.resetDepositScan();

@@ -103,7 +103,12 @@ public class WalletTransaction {
         DEPOSIT,
         SWEEP,
         WITHDRAWAL,
-        INTERNAL_TRANSFER
+        INTERNAL_TRANSFER,
+        ESCROW_LOCK,        // Lock funds for milestone
+        ESCROW_RELEASE,     // Release funds to freelancer
+        ESCROW_REFUND,      // Refund to employer
+        FEE_DEDUCTION,      // Platform fee deduction
+        ADMIN_ADJUSTMENT    // Manual admin adjustment
     }
 
     public enum TransactionStatus {

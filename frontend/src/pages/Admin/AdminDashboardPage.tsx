@@ -35,6 +35,20 @@ export function AdminDashboardPage() {
     try {
       setLoading(true);
       setError('');
+      
+      // ✅ VERIFY: Check token trước khi gọi API
+      const token = localStorage.getItem('adminToken') || 
+                    localStorage.getItem('userToken') ||
+                    localStorage.getItem('token');
+      
+      if (!token) {
+        setError('No authentication token found. Please login again.');
+        window.location.href = '/admin/login';
+        return;
+      }
+      
+      console.log('🔑 Fetching with token:', token.substring(0, 20) + '...');
+      
       const overviewResponse = await adminApi.getDashboardOverview();
 
       if (!overviewResponse?.success) {
@@ -377,4 +391,3 @@ function OverviewTab({ data }: { data: any }) {
   );
 }
 
- 

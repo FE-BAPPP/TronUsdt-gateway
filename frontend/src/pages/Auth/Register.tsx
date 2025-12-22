@@ -6,7 +6,7 @@ import { useNavigate, Link } from "react-router-dom"
 import { motion } from "framer-motion"
 import { useAuth } from "../../hooks/useAuth"
 import { userApi } from "../../services/api"
-import { UserPlus, User, Mail, UserCircle, Lock, Eye, EyeOff, AlertCircle, Loader2, CheckCircle } from "lucide-react"
+import { UserPlus, User, Mail, UserCircle, Lock, Eye, EyeOff, AlertCircle, Loader2, CheckCircle, Briefcase, Building } from "lucide-react"
 
 interface FormData {
   username: string
@@ -14,6 +14,7 @@ interface FormData {
   fullName: string
   password: string
   confirmPassword: string
+  role: 'FREELANCER' | 'EMPLOYER';
 }
 
 interface ValidationErrors {
@@ -34,6 +35,7 @@ export function Register() {
     fullName: "",
     password: "",
     confirmPassword: "",
+    role: "FREELANCER",
   })
 
   const [showPassword, setShowPassword] = useState(false)
@@ -101,6 +103,7 @@ export function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setValidationErrors({})
 
     const errors = validateForm()
     if (Object.keys(errors).length > 0) {
@@ -114,18 +117,18 @@ export function Register() {
       const response = await userApi.register({
         username: formData.username,
         email: formData.email,
-        fullName: formData.fullName,
         password: formData.password,
         confirmPassword: formData.confirmPassword,
+        fullName: formData.fullName,
+        role: formData.role, 
       })
 
-      if (response.success) {
-        navigate("/login", {
-          state: { message: "Registration successful! Please sign in." },
-        })
-      } else {
-        setError(response.message || "Registration failed")
+      if (!response.success) {
+        throw new Error(response.message || "Registration failed")
       }
+
+      alert(`Registration successful as ${formData.role}! Please login.`)
+      navigate("/login")
     } catch (err: any) {
       setError(err.message || "Registration failed")
     } finally {
@@ -155,7 +158,7 @@ export function Register() {
                 <UserPlus className="w-8 h-8 text-yellow-400" />
                 <h1 className="text-3xl font-bold text-white">Create Account</h1>
               </div>
-              <p className="text-gray-300">Join the USDT wallet ecosystem</p>
+              <p className="text-gray-300">Join as Freelancer or Employer</p>
             </div>
 
             {error && (
@@ -174,6 +177,42 @@ export function Register() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Role Selection */}
+              <div className="mb-6">
+                <label className="block text-gray-300 text-sm font-medium mb-3">
+                  I want to join as:
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, role: "FREELANCER" }))}
+                    className={`p-4 rounded-xl border-2 transition-all duration-300 ${
+                      formData.role === "FREELANCER"
+                        ? "border-yellow-400 bg-yellow-400/10 text-yellow-300"
+                        : "border-white/20 bg-white/5 text-gray-300 hover:border-white/40"
+                    }`}
+                  >
+                    <Briefcase className="w-6 h-6 mx-auto mb-2" />
+                    <div className="font-semibold">Freelancer</div>
+                    <div className="text-xs text-gray-400 mt-1">I want to work on projects</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, role: "EMPLOYER" }))}
+                    className={`p-4 rounded-xl border-2 transition-all duration-300 ${
+                      formData.role === "EMPLOYER"
+                        ? "border-blue-400 bg-blue-400/10 text-blue-300"
+                        : "border-white/20 bg-white/5 text-gray-300 hover:border-white/40"
+                    }`}
+                  >
+                    <Building className="w-6 h-6 mx-auto mb-2" />
+                    <div className="font-semibold">Employer</div>
+                    <div className="text-xs text-gray-400 mt-1">I want to hire talent</div>
+                  </button>
+                </div>
+              </div>
+
               {/* Username */}
               <div>
                 <label className="block text-gray-300 text-sm font-medium mb-2 flex items-center gap-2">

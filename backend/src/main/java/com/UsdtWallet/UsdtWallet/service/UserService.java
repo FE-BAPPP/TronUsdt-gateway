@@ -3,9 +3,13 @@ package com.UsdtWallet.UsdtWallet.service;
 import com.UsdtWallet.UsdtWallet.model.dto.request.UserRegistrationRequest;
 import com.UsdtWallet.UsdtWallet.model.dto.response.UserRegistrationResponse;
 import com.UsdtWallet.UsdtWallet.model.entity.ChildWalletPool;
+import com.UsdtWallet.UsdtWallet.model.entity.EmployerProfile;
+import com.UsdtWallet.UsdtWallet.model.entity.FreelancerProfile;
 import com.UsdtWallet.UsdtWallet.model.entity.User;
 import com.UsdtWallet.UsdtWallet.repository.UserRepository;
 import com.UsdtWallet.UsdtWallet.repository.ChildWalletPoolRepository;
+import com.UsdtWallet.UsdtWallet.repository.EmployerProfileRepository;
+import com.UsdtWallet.UsdtWallet.repository.FreelancerProfileRepository;
 import com.UsdtWallet.UsdtWallet.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,19 +33,21 @@ public class UserService {
     private final ChildWalletPoolRepository childWalletPoolRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailService emailService; // added
+    private final FreelancerProfileRepository freelancerProfileRepository;
+    private final EmployerProfileRepository employerProfileRepository;
 
     @Value("${security.passwordReset.withdrawalLockHours:24}")
     private long withdrawalLockHours;
 
     /**
-     * Register new user with auto wallet assignment
+     * Register new user with role-based profile creation
      */
     @Transactional
     public UserRegistrationResponse registerUser(UserRegistrationRequest request) {
-        // Validate input
+        // 1. Validate input
         validateRegistrationRequest(request);
 
-        // Check if user already exists
+        // 2. Check if user already exists
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new RuntimeException("Username already exists");
         }
@@ -50,31 +56,80 @@ public class UserService {
             throw new RuntimeException("Email already exists");
         }
 
-        // Create new user
-        User user = createUser(request);
+        // 3. Validate role
+        User.Role userRole;
+        try {
+            userRole = User.Role.valueOf(request.getRole().toUpperCase());
+            if (userRole != User.Role.FREELANCER && userRole != User.Role.EMPLOYER) {
+                throw new RuntimeException("Invalid role. Must be FREELANCER or EMPLOYER");
+            }
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid role. Must be FREELANCER or EMPLOYER");
+        }
+
+        // 4. Create user entity
+        User user = User.builder()
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .fullName(request.getFullName())
+                .role(userRole) // 🆕 Set role from request
+                .status(1)
+                .isActive(true)
+                .isAdmin(false)
+                .isUser(false) // Not a generic USER anymore
+                .userCreated("SYSTEM")
+                .build();
+
         User savedUser = userRepository.save(user);
+        log.info("User created successfully: {} with role: {}", savedUser.getUsername(), userRole);
 
-        log.info("User created successfully: {}", savedUser.getUsername());
-
-        // Auto assign wallet to user
+        // 5. Auto assign wallet (GIỮ NGUYÊN CORE CŨ)
         ChildWalletPool assignedWallet = hdWalletService.assignWalletToUser(savedUser.getId());
-
-        // Update user's address field with wallet address
         savedUser.setAddress(assignedWallet.getAddress());
         savedUser = userRepository.save(savedUser);
+        log.info("Wallet {} assigned to user {}", assignedWallet.getAddress(), savedUser.getUsername());
 
-        log.info("Wallet {} assigned to user {} and saved to user.address field",
-            assignedWallet.getAddress(), savedUser.getUsername());
+        // 6. 🆕 Create role-specific profile
+        if (userRole == User.Role.FREELANCER) {
+            createFreelancerProfile(savedUser);
+        } else if (userRole == User.Role.EMPLOYER) {
+            createEmployerProfile(savedUser);
+        }
 
         return UserRegistrationResponse.builder()
                 .userId(savedUser.getId())
                 .username(savedUser.getUsername())
                 .email(savedUser.getEmail())
                 .fullName(savedUser.getFullName())
+                .role(savedUser.getRole().name()) // 🆕 Add role to response
                 .walletAddress(assignedWallet.getAddress())
                 .registeredAt(savedUser.getDateCreated())
-                .message("User registered successfully with auto-assigned wallet")
+                .message("User registered successfully as " + userRole.name())
                 .build();
+    }
+
+    /**
+     * 🆕 Create Freelancer profile
+     */
+    private void createFreelancerProfile(User user) {
+        FreelancerProfile profile = FreelancerProfile.builder()
+                .user(user)
+                .availability("AVAILABLE")
+                .build();
+        freelancerProfileRepository.save(profile);
+        log.info("Freelancer profile created for user: {}", user.getUsername());
+    }
+
+    /**
+     * 🆕 Create Employer profile
+     */
+    private void createEmployerProfile(User user) {
+        EmployerProfile profile = EmployerProfile.builder()
+                .user(user)
+                .build();
+        employerProfileRepository.save(profile);
+        log.info("Employer profile created for user: {}", user.getUsername());
     }
 
     /**
@@ -84,24 +139,6 @@ public class UserService {
         if (!request.getPassword().equals(request.getConfirmPassword())) {
             throw new RuntimeException("Password and confirm password do not match");
         }
-    }
-
-    /**
-     * Create user entity from request
-     */
-    private User createUser(UserRegistrationRequest request) {
-        return User.builder()
-                .username(request.getUsername())
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getFullName())
-                .phone(request.getPhone())
-                .role(User.Role.USER)
-                .status(1)
-                .isActive(true)
-                .isUser(true)
-                .userCreated("SYSTEM")
-                .build();
     }
 
     /**
@@ -132,7 +169,8 @@ public class UserService {
                 "username", user.getUsername(),
                 "email", user.getEmail(),
                 "fullName", user.getFullName() != null ? user.getFullName() : "",
-                "role", user.getRole(),
+                "role", user.getRole(), // ✅ Đã có sẵn
+                "isAdmin", user.isAdmin(),
                 "walletAddress", walletAddress != null ? walletAddress : ""
             )
         );
@@ -173,22 +211,36 @@ public class UserService {
      */
     public Map<String, Object> getUserWalletInfo(UUID userId) {
         String walletAddress = getUserWalletAddress(userId);
-        if (walletAddress == null) {
-            throw new RuntimeException("No wallet assigned to user");
+        
+        // ✅ FIX: Handle case when wallet not assigned
+        if (walletAddress == null || walletAddress.isEmpty()) {
+            Map<String, Object> result = new java.util.HashMap<>();
+            result.put("userId", userId.toString());
+            result.put("walletAddress", "");
+            result.put("address", "");
+            result.put("depositAddress", "");
+            result.put("network", "TRC20");
+            result.put("status", "NOT_ASSIGNED");
+            result.put("derivationIndex", -1);
+            result.put("note", "Wallet not assigned. Please contact support.");
+            return result;
         }
 
         // Get wallet status from pool
         ChildWalletPool wallet = childWalletPoolRepository.findByAddress(walletAddress).orElse(null);
 
-        return Map.of(
-            "userId", userId.toString(),
-            "walletAddress", walletAddress,
-            "network", "TRC20",
-            "status", wallet != null ? wallet.getStatus().toString() : "UNKNOWN",
-            "derivationIndex", wallet != null ? wallet.getDerivationIndex() : -1,
-            "assignedAt", wallet != null && wallet.getCreatedAt() != null ? wallet.getCreatedAt() : LocalDateTime.now(),
-            "note", "Only send USDT (TRC20) to this address"
-        );
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("userId", userId.toString());
+        result.put("walletAddress", walletAddress);
+        result.put("address", walletAddress);
+        result.put("depositAddress", walletAddress);
+        result.put("network", "TRC20");
+        result.put("status", wallet != null ? wallet.getStatus().toString() : "ACTIVE");
+        result.put("derivationIndex", wallet != null ? wallet.getDerivationIndex() : -1);
+        result.put("assignedAt", wallet != null && wallet.getCreatedAt() != null ? wallet.getCreatedAt() : LocalDateTime.now());
+        result.put("note", "Only send USDT (TRC20) to this address");
+        
+        return result;
     }
 
     /**

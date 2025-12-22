@@ -1,96 +1,64 @@
-import { useState, useEffect, createContext, useContext } from 'react';
-import { userApi, adminApi, authHelper } from '../services/api';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { userApi } from '../services/api';
 
-interface User {
-  id: string;
-  username: string;
-  email: string;
-  fullName: string;
-  role: 'USER' | 'ADMIN';
-  createdAt: string;
-}
+// 🆕 UPDATE: Add FREELANCER and EMPLOYER to role type
+export type UserRole = 'USER' | 'ADMIN' | 'FREELANCER' | 'EMPLOYER';
 
 interface AuthContextType {
-  user: User | null;
-  role: 'USER' | 'ADMIN' | null;
+  user: any;
+  role: UserRole | null;
+  isLoggedIn: boolean;
+  isAdmin: boolean;
+  isUser: boolean;
+  isFreelancer: boolean; // 🆕 NEW
+  isEmployer: boolean;   // 🆕 NEW
+  loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
-  loading: boolean;
-  error: string | null;
-  isUser: boolean;
-  isAdmin: boolean;
-  isLoggedIn: boolean;
+  refreshUser: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
+    throw new Error('useAuth must be used within AuthContext.Provider');
   }
   return context;
-}
+};
 
-export function useAuthProvider(): AuthContextType {
-  const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<'USER' | 'ADMIN' | null>(null);
+export const useAuthProvider = (): AuthContextType => {
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  
+  // 🆕 FIX: Read role correctly from localStorage
+  const storedRole = localStorage.getItem('role') as UserRole | null;
+  const role = storedRole || (user?.role as UserRole) || null;
+
+  const isLoggedIn = !!user && !!localStorage.getItem('token');
+  const isAdmin = role === 'ADMIN';
+  const isUser = role === 'USER';
+  const isFreelancer = role === 'FREELANCER'; // 🆕 NEW
+  const isEmployer = role === 'EMPLOYER';     // 🆕 NEW
 
   useEffect(() => {
     const initAuth = async () => {
-      try {
-        setLoading(true);
-        
-        // Check current role from localStorage
-        const currentRole = authHelper.getCurrentRole();
-        
-        if (currentRole) {
-          console.log('🔐 Found saved token for role:', currentRole);
-          
-          try {
-            // Always try to get profile to detect role from backend
-            const profileResponse = await userApi.getProfile();
-            if (profileResponse.success) {
-              const p: any = profileResponse.data || {};
-              const detectedRole: 'USER' | 'ADMIN' = (p.role === 'ADMIN' || p.isAdmin) ? 'ADMIN' : 'USER';
-              setRole(detectedRole);
-              setUser({
-                id: p.id || 'unknown',
-                username: p.username || 'unknown',
-                email: p.email || '',
-                fullName: p.fullName || p.username || '',
-                role: detectedRole,
-                createdAt: p.createdAt || new Date().toISOString()
-              });
+      const token = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+      const storedRole = localStorage.getItem('role');
 
-              // Ensure admin token is set for admin client
-              if (detectedRole === 'ADMIN') {
-                const token = authHelper.getUserToken();
-                if (token) adminApi.setToken(token);
-              }
-            } else {
-              console.log('❌ Token invalid, clearing auth');
-              authHelper.logoutAll();
-              setUser(null);
-              setRole(null);
-            }
-          } catch (err) {
-            console.log('❌ Auth check failed:', err);
-            authHelper.logoutAll();
-            setUser(null);
-            setRole(null);
-          }
-        } else {
-          console.log('ℹ️ No saved token found');
+      if (token && storedUser && storedRole) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch (error) {
+          console.error('Failed to parse stored user:', error);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('role');
         }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        setError('Authentication initialization failed');
-      } finally {
-        setLoading(false);
       }
+      setLoading(false);
     };
 
     initAuth();
@@ -98,71 +66,61 @@ export function useAuthProvider(): AuthContextType {
 
   const login = async (username: string, password: string) => {
     try {
-      setLoading(true);
-      setError(null);
-      console.log(`🔑 Attempting login for:`, username);
       const response = await userApi.login(username, password);
       
-      if (response.success) {
-        console.log('✅ Login successful');
-        // Fetch profile to determine role
-        const profileResponse = await userApi.getProfile();
-        if (profileResponse.success) {
-          const p: any = profileResponse.data || {};
-          const detectedRole: 'USER' | 'ADMIN' = (p.role === 'ADMIN' || p.isAdmin) ? 'ADMIN' : 'USER';
-          setRole(detectedRole);
-          setUser({
-            id: p.id || 'unknown',
-            username: p.username || username,
-            email: p.email || '',
-            fullName: p.fullName || p.username || username,
-            role: detectedRole,
-            createdAt: p.createdAt || new Date().toISOString()
-          });
-
-          // If admin, mirror token to admin storage
-          if (detectedRole === 'ADMIN') {
-            const token = authHelper.getUserToken();
-            if (token) adminApi.setToken(token);
-          }
-        } else {
-          throw new Error('Failed to fetch profile');
-        }
+      if (response.success && response.data) {
+        const { token, user: userData } = response.data;
+        
+        // 🆕 FIX: Store role correctly
+        const userRole = userData.role || 'USER';
+        
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('role', userRole); // ✅ Save FREELANCER/EMPLOYER
+        
+        setUser(userData);
       } else {
         throw new Error(response.message || 'Login failed');
       }
     } catch (error: any) {
-      console.error('❌ Login error:', error);
-      setError(error.message || 'Login failed');
+      console.error('Login error:', error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const logout = () => {
-    console.log('🚪 Logging out...');
-    // Fire-and-forget backend logout to blacklist token
-    userApi.logout().catch(() => {});
-    authHelper.logoutAll();
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('role');
     setUser(null);
-    setRole(null);
-    setError(null);
+    window.location.href = '/login';
   };
 
-  const isUser = role === 'USER';
-  const isAdmin = role === 'ADMIN';
-  const isLoggedIn = !!role; // role is set only after successful auth
+  const refreshUser = async () => {
+    try {
+      const response = await userApi.getProfile();
+      if (response.success && response.data) {
+        const userData = response.data;
+        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('role', userData.role || 'USER'); // ✅ Update role
+        setUser(userData);
+      }
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    }
+  };
 
   return {
     user,
     role,
+    isLoggedIn,
+    isAdmin,
+    isUser,
+    isFreelancer, // 🆕 NEW
+    isEmployer,   // 🆕 NEW
+    loading,
     login,
     logout,
-    loading,
-    error,
-    isUser,
-    isAdmin,
-    isLoggedIn
+    refreshUser,
   };
-}
+};
