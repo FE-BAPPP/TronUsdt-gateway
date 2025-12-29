@@ -106,4 +106,81 @@ public class JobController {
                     .build());
         }
     }
+
+    /**
+     * 🔄 PUT /api/jobs/{id} - Cập nhật job (chỉ employer owner)
+     * 
+     * Chỉ có thể update khi job vẫn ở trạng thái OPEN
+     */
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('EMPLOYER')")
+    public ResponseEntity<ApiResponse<JobResponse>> updateJob(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @PathVariable UUID id,
+            @Valid @RequestBody JobCreateRequest request) {
+        try {
+            JobResponse job = jobService.updateJob(id, userPrincipal.getId(), request);
+            return ResponseEntity.ok(ApiResponse.success("Job updated successfully", job));
+        } catch (Exception e) {
+            log.error("Error updating job: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.<JobResponse>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
+        }
+    }
+
+    /**
+     * ❌ DELETE /api/jobs/{id} - Xóa job (chỉ employer owner)
+     * 
+     * Chỉ có thể xóa nếu:
+     * - Job vẫn OPEN
+     * - Chưa có proposal nào được AWARDED
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('EMPLOYER')")
+    public ResponseEntity<ApiResponse<Void>> deleteJob(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @PathVariable UUID id) {
+        try {
+            jobService.deleteJob(id, userPrincipal.getId());
+            return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .success(true)
+                .message("Job deleted successfully")
+                .build());
+        } catch (Exception e) {
+            log.error("Error deleting job: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.<Void>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
+        }
+    }
+
+    /**
+     * 🔒 POST /api/jobs/{id}/close - Đóng job (không nhận proposal nữa)
+     * 
+     * Employer có thể close job khi:
+     * - Đã tìm được freelancer phù hợp
+     * - Không muốn nhận proposal nữa
+     */
+    @PostMapping("/{id}/close")
+    @PreAuthorize("hasRole('EMPLOYER')")
+    public ResponseEntity<ApiResponse<JobResponse>> closeJob(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @PathVariable UUID id) {
+        try {
+            JobResponse job = jobService.closeJob(id, userPrincipal.getId());
+            return ResponseEntity.ok(ApiResponse.success("Job closed successfully", job));
+        } catch (Exception e) {
+            log.error("Error closing job: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.<JobResponse>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
+        }
+    }
 }

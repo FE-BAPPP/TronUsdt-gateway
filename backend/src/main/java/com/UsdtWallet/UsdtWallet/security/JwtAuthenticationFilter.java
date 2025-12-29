@@ -75,16 +75,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 log.debug("SSE endpoint - JWT from query param: {}", jwt != null ? "Yes" : "No");
             }
             
-            log.debug("JWT token found: {}", jwt != null ? "Yes" : "No");
+            log.info("🔍 JWT Debug - Path: {}, Token found: {}", requestPath, jwt != null ? "Yes" : "No");
 
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 // Check blacklist (logout)
                 if (authTokenService.isBlacklisted(jwt)) {
+                    log.warn("🚫 Token is blacklisted for path: {}", requestPath);
                     filterChain.doFilter(request, response);
                     return;
                 }
 
                 String username = tokenProvider.getUsernameFromToken(jwt);
+                log.info("🔓 JWT validated, username: {}", username);
 
                 // Enforce password reset logout
                 try {
@@ -92,6 +94,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     if (userEntity != null && userEntity.getPasswordChangedAt() != null) {
                         Date iat = tokenProvider.getIssuedAtDate(jwt);
                         if (iat == null || iat.toInstant().isBefore(userEntity.getPasswordChangedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())) {
+                            log.warn("⏰ Token issued before password change for: {}", username);
                             filterChain.doFilter(request, response);
                             return;
                         }
@@ -103,6 +106,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 // Cast về UserPrincipal để đảm bảo @AuthenticationPrincipal hoạt động
                 UserPrincipal userPrincipal = (UserPrincipal) userDetails;
+                log.info("👤 User authorities: {}", userPrincipal.getAuthorities());
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
@@ -110,9 +114,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-                log.debug("Authentication set for user: {}", username);
+                log.info("✅ Authentication set for user: {} with roles: {}", username, userPrincipal.getAuthorities());
             } else {
-                log.debug("Invalid or missing JWT token for path: {}", requestPath);
+                log.warn("❌ Invalid or missing JWT token for path: {}", requestPath);
             }
 
         } catch (Exception e) {

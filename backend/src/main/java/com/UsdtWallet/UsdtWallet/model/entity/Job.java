@@ -86,15 +86,32 @@ public class Job {
     @Builder.Default
     private Set<Skill> requiredSkills = new HashSet<>();
     
+    /**
+     * 🆕 Job complexity/size
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "complexity")
+    @Builder.Default
+    private JobComplexity complexity = JobComplexity.SMALL;
+    
+    @Column(name = "estimated_milestones")
+    private Integer estimatedMilestones;
+    
     public enum JobStatus {
-        OPEN,
-        IN_PROGRESS,
-        COMPLETED,
-        CANCELLED
+        OPEN,           // ✅ Job đang mở, nhận proposals
+        CLOSED,         // ✅ Job đóng, không nhận proposal nữa  
+        CANCELLED,      // ✅ Job bị hủy
+        IN_PROGRESS     // ✅ Job đang có project (proposal đã awarded)
     }
     
     public enum ProjectType {
         FIXED_PRICE,
         HOURLY
+    }
+    
+    public enum JobComplexity {
+        SMALL,   // 1 milestone (banner design, quick fix)
+        MEDIUM,  // 2-5 milestones (landing page, small app)
+        LARGE    // 5+ milestones (full project, complex system)
     }
 }

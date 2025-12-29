@@ -1,8 +1,9 @@
 // frontend/src/components/Proposals/SubmitProposalModal.tsx
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, DollarSign, Clock, FileText, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, Send, DollarSign, Clock, FileText, AlertCircle, CheckCircle, Upload, Paperclip } from 'lucide-react';
 import { proposalApi, ProposalCreateRequest } from '../../services/proposalApi';
+import { projectApi } from '../../services/api';
 
 interface SubmitProposalModalProps {
   job: any;
@@ -22,8 +23,10 @@ export function SubmitProposalModal({ job, isOpen, onClose, onSuccess }: SubmitP
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
 
-  // ✅ FIX: Update jobId when modal opens
+  
   useEffect(() => {
     if (isOpen && job?.id) {
       setFormData(prev => ({
@@ -32,8 +35,18 @@ export function SubmitProposalModal({ job, isOpen, onClose, onSuccess }: SubmitP
       }));
       setError(null);
       setSuccess(false);
+      setUploadedFiles([]);
     }
   }, [isOpen, job]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setUploadedFiles(prev => [...prev, ...files]);
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +92,20 @@ export function SubmitProposalModal({ job, isOpen, onClose, onSuccess }: SubmitP
       const response = await proposalApi.submitProposal(payload);
       
       console.log('✅ Proposal submitted:', response); // Debug log
+      
+      // Upload files if any
+      const proposalId = response.data?.id || response.id;
+      if (uploadedFiles.length > 0 && proposalId) {
+        setUploadingFiles(true);
+        for (const file of uploadedFiles) {
+          try {
+            await projectApi.uploadFile(file, 'PROPOSAL', proposalId);
+          } catch (err) {
+            console.error('Failed to upload file:', err);
+          }
+        }
+        setUploadingFiles(false);
+      }
       
       setSuccess(true);
       
@@ -242,27 +269,88 @@ export function SubmitProposalModal({ job, isOpen, onClose, onSuccess }: SubmitP
                 />
               </div>
 
+              {/* File Attachments */}
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2 flex items-center gap-2">
+                  <Paperclip className="w-4 h-4" />
+                  Attach Portfolio/Samples (Optional)
+                </label>
+                <div className="border-2 border-dashed border-white/20 rounded-xl p-4 text-center hover:border-yellow-400/50 transition-all">
+                  <input
+                    type="file"
+                    id="proposal-file-upload"
+                    multiple
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.zip"
+                    disabled={loading || success}
+                  />
+                  <label
+                    htmlFor="proposal-file-upload"
+                    className="cursor-pointer flex flex-col items-center gap-2"
+                  >
+                    <Upload className="w-6 h-6 text-gray-400" />
+                    <span className="text-gray-400 text-sm">
+                      Upload portfolio or work samples
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      PDF, DOC, Images, ZIP (Max 10MB per file)
+                    </span>
+                  </label>
+                </div>
+
+                {/* Uploaded Files List */}
+                {uploadedFiles.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {uploadedFiles.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 bg-white/5 rounded-lg border border-white/10"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Paperclip className="w-4 h-4 text-yellow-400" />
+                          <div>
+                            <p className="text-sm text-white">{file.name}</p>
+                            <p className="text-xs text-gray-400">
+                              {(file.size / 1024).toFixed(2)} KB
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeFile(index)}
+                          className="p-1 hover:bg-white/10 rounded transition-colors"
+                          disabled={loading || success}
+                        >
+                          <X className="w-4 h-4 text-red-400" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Action buttons */}
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={onClose}
-                  disabled={loading}
+                  disabled={loading || uploadingFiles}
                   className="flex-1 px-6 py-3 bg-gray-700/50 hover:bg-gray-700 border border-gray-600 text-white rounded-lg transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || success}
+                  disabled={loading || success || uploadingFiles}
                   className="flex-1 relative overflow-hidden rounded-lg py-3 transition-all disabled:opacity-50"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-400"></div>
                   <div className="relative z-10 text-black font-medium flex items-center justify-center gap-2">
-                    {loading ? (
+                    {loading || uploadingFiles ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent"></div>
-                        Submitting...
+                        {uploadingFiles ? 'Uploading files...' : 'Submitting...'}
                       </>
                     ) : success ? (
                       <>

@@ -21,8 +21,11 @@ public class Escrow {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
-    @Column(name = "project_id", nullable = false, unique = true)
+    @Column(name = "project_id", nullable = false)
     private UUID projectId;
+    
+    @Column(name = "milestone_id")
+    private UUID milestoneId;
 
     @Column(name = "employer_id", nullable = false)
     private UUID employerId;
@@ -32,6 +35,10 @@ public class Escrow {
 
     @Column(name = "amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
+    
+    @Column(name = "platform_fee", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal platformFee = BigDecimal.ZERO;
 
     @Column(length = 10)
     @Builder.Default
@@ -47,6 +54,9 @@ public class Escrow {
 
     @Column(name = "released_at")
     private LocalDateTime releasedAt;
+    
+    @Column(name = "released_to")
+    private UUID releasedTo;
 
     @Column(name = "refunded_at")
     private LocalDateTime refundedAt;

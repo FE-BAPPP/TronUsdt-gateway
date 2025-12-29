@@ -17,6 +17,14 @@ import java.util.UUID;
 @Repository
 public interface WalletTransactionRepository extends JpaRepository<WalletTransaction, Long> {
 
+    // --- Statistics methods ---
+    @Query("SELECT COALESCE(SUM(wt.amount), 0) FROM WalletTransaction wt WHERE wt.transactionType = :type")
+    BigDecimal sumAmountByTransactionType(@Param("type") String type);
+    
+    long countByTransactionType(String type);
+    
+    long countByCreatedAtBetweenAndTransactionType(LocalDateTime start, LocalDateTime end, String type);
+
     // --- Các method cho DepositScanner / Sweep ---
 
     // Find by transaction hash

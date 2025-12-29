@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./components/Layout/Layout";
 import { Dashboard } from "./pages/Dashboard";
@@ -6,12 +5,12 @@ import { Login } from "./pages/Auth/Login";
 import { Register } from "./pages/Auth/Register";
 import { WalletPage } from "./pages/Wallet/WalletPage";
 import { TransactionsPage } from "./pages/Transactions/TransactionsPage";
-import { P2PPage } from "./pages/P2P/P2PPage";
 import { ProfilePage } from "./pages/Profile/ProfilePage";
 import { AdminDashboardPage } from "./pages/Admin/AdminDashboardPage";
 import { AdminTrackingPage } from "./pages/Admin/AdminTrackingPage";
 import { AdminWithdrawalsPage } from "./pages/Admin/AdminWithdrawalsPage";
 import AdminUsersPage from "./pages/Admin/AdminUserPage";
+import AdminSkillsPage from "./pages/Admin/AdminSkillsPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthContext, useAuthProvider, useAuth } from "./hooks/useAuth";
 import { ForgotPassword } from "./pages/Auth/ForgotPassword";
@@ -25,16 +24,16 @@ import { MyJobsPage } from './pages/Employer/MyJobsPage';
 import { JobDetailPage } from './pages/Freelancer/JobDetailPage';
 import { MyProposalsPage } from './pages/Freelancer/MyProposalsPage';
 import { ViewProposalsPage } from './pages/Employer/ViewProposalsPage';
+import { EmployerJobDetailPage } from './pages/Employer/EmployerJobDetailPage';
 import { ProjectsPage } from './pages/Projects/ProjectsPage';
 import { ProjectDetailPage } from './pages/Projects/ProjectDetailPage';
 import { FreelancerProfilePage } from './pages/Freelancer/FreelancerProfilePage';
 import { FreelancerPublicProfilePage } from './pages/Freelancer/FreelancerPublicProfilePage';
-
-// Temporary placeholders
-const PlaceholderPage = () => <div className="p-8 text-white">This page is under construction</div>;
+import { ManageMilestonesPage } from './pages/Projects/ManageMilestonesPage';
+import { ChatPage } from './pages/Chat/ChatPage';
 
 function AppRoutes() {
-  const { isLoggedIn, role } = useAuth();
+  const { role } = useAuth();
 
   return (
     <Routes>
@@ -75,6 +74,7 @@ function AppRoutes() {
                 <Route path="tracking" element={<AdminTrackingPage />} />
                 <Route path="withdrawals" element={<AdminWithdrawalsPage />} />
                 <Route path="users" element={<AdminUsersPage />} />
+                <Route path="skills" element={<AdminSkillsPage />} />
               </Routes>
             </Layout>
           </ProtectedRoute>
@@ -91,7 +91,6 @@ function AppRoutes() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="wallet" element={<WalletPage />} />
                 <Route path="transactions" element={<TransactionsPage />} />
-                <Route path="p2p" element={<P2PPage />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Routes>
             </Layout>
@@ -130,6 +129,7 @@ function AppRoutes() {
                 <Route path="dashboard" element={<EmployerDashboard />} />
                 <Route path="post-job" element={<PostJobPage />} />
                 <Route path="my-jobs" element={<MyJobsPage />} />
+                <Route path="jobs/:jobId" element={<EmployerJobDetailPage />} />
                 <Route path="jobs/:jobId/proposals" element={<ViewProposalsPage />} />
                 <Route path="wallet" element={<WalletPage />} />
                 <Route path="profile" element={<ProfilePage />} />
@@ -165,7 +165,7 @@ function AppRoutes() {
       <Route
         path="/employer/my-projects"
         element={
-          <ProtectedRoute allowedRoles={['EMPLOYER']}>
+          <ProtectedRoute requiredRole="EMPLOYER">
             <Layout>
               <ProjectsPage />
             </Layout>
@@ -177,7 +177,7 @@ function AppRoutes() {
       <Route
         path="/freelancer/my-projects"
         element={
-          <ProtectedRoute allowedRoles={['FREELANCER']}>
+          <ProtectedRoute requiredRole="FREELANCER">
             <Layout>
               <ProjectsPage />
             </Layout>
@@ -185,13 +185,35 @@ function AppRoutes() {
         }
       />
 
-      {/* 🆕 Public Freelancer Profile Route (accessible by Employer/Admin) */}
+      {/* 🆕 Public Freelancer Profile Route (accessible by all authenticated users) */}
       <Route
         path="/freelancer/profile/:freelancerId"
         element={
-          <ProtectedRoute allowedRoles={['EMPLOYER', 'ADMIN', 'FREELANCER']}>
+          <ProtectedRoute>
             <Layout>
               <FreelancerPublicProfilePage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* 🆕 Milestone Management Route */}
+      <Route 
+        path="/projects/:projectId/milestones" 
+        element={
+          <ProtectedRoute>
+            <ManageMilestonesPage />
+          </ProtectedRoute>
+        } 
+      />
+
+      {/* 🆕 Chat Route */}
+      <Route
+        path="/chat"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ChatPage />
             </Layout>
           </ProtectedRoute>
         }

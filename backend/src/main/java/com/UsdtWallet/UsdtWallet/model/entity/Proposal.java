@@ -53,10 +53,11 @@ public class Proposal {
     private LocalDateTime updatedAt;
 
     public enum ProposalStatus {
-        PENDING,
-        ACCEPTED,
-        REJECTED,
-        WITHDRAWN,
-        AWARDED
+        PENDING,        // ✅ Chờ xét duyệt
+        ACCEPTED,       // ✅ Employer chấp nhận (deprecated - dùng AWARDED)
+        REJECTED,       // ✅ Bị từ chối
+        WITHDRAWN,      // ✅ Freelancer rút lại
+        SHORTLISTED,    // ✅ Employer shortlist để xem xét
+        AWARDED         // ✅ Đã trao dự án (tạo Project)
     }
 }

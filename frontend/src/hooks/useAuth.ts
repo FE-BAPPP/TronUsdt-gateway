@@ -36,7 +36,7 @@ export const useAuthProvider = (): AuthContextType => {
   const storedRole = localStorage.getItem('role') as UserRole | null;
   const role = storedRole || (user?.role as UserRole) || null;
 
-  const isLoggedIn = !!user && !!localStorage.getItem('token');
+  const isLoggedIn = !!user && !!localStorage.getItem('userToken');
   const isAdmin = role === 'ADMIN';
   const isUser = role === 'USER';
   const isFreelancer = role === 'FREELANCER'; // 🆕 NEW
@@ -44,7 +44,15 @@ export const useAuthProvider = (): AuthContextType => {
 
   useEffect(() => {
     const initAuth = async () => {
-      const token = localStorage.getItem('token');
+      // ✅ MIGRATION: Clean up old 'token' key and migrate to 'userToken'
+      const oldToken = localStorage.getItem('token');
+      if (oldToken && !localStorage.getItem('userToken')) {
+        localStorage.setItem('userToken', oldToken);
+        localStorage.removeItem('token');
+        console.log('🔄 Migrated old token to userToken');
+      }
+      
+      const token = localStorage.getItem('userToken');
       const storedUser = localStorage.getItem('user');
       const storedRole = localStorage.getItem('role');
 
@@ -53,7 +61,7 @@ export const useAuthProvider = (): AuthContextType => {
           setUser(JSON.parse(storedUser));
         } catch (error) {
           console.error('Failed to parse stored user:', error);
-          localStorage.removeItem('token');
+          localStorage.removeItem('userToken');
           localStorage.removeItem('user');
           localStorage.removeItem('role');
         }
@@ -74,7 +82,7 @@ export const useAuthProvider = (): AuthContextType => {
         // 🆕 FIX: Store role correctly
         const userRole = userData.role || 'USER';
         
-        localStorage.setItem('token', token);
+        localStorage.setItem('userToken', token); // ✅ FIX: Use 'userToken' to match UserApiClient
         localStorage.setItem('user', JSON.stringify(userData));
         localStorage.setItem('role', userRole); // ✅ Save FREELANCER/EMPLOYER
         
@@ -89,7 +97,7 @@ export const useAuthProvider = (): AuthContextType => {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('userToken'); // ✅ FIX: Use 'userToken'
     localStorage.removeItem('user');
     localStorage.removeItem('role');
     setUser(null);

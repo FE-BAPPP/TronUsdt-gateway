@@ -30,6 +30,7 @@ public class JobService {
     private final SkillRepository skillRepository;
     private final UserRepository userRepository;
     private final PointsService pointsService;
+    private final EmployerProfileService employerProfileService;
 
     /**
      * Employer posts a new job
@@ -92,6 +93,9 @@ public class JobService {
 
         Job savedJob = jobRepository.save(job);
         log.info("Job created: {} by employer: {}", savedJob.getId(), employerId);
+        
+        // ✅ UPDATE employer profile stats
+        employerProfileService.incrementJobsPosted(employerId);
 
         return mapToJobResponse(savedJob);
     }
@@ -156,5 +160,128 @@ public class JobService {
             .createdAt(job.getCreatedAt())
             .updatedAt(job.getUpdatedAt())
             .build();
+    }
+
+    /**
+     * 🔄 UPDATE JOB - Employer cập nhật job của mình
+     * 
+     * BƯỚC 1: Validate job tồn tại
+     * BƯỚC 2: Validate employer là owner
+     * BƯỚC 3: Validate job vẫn OPEN (không thể update job đã CLOSED)
+     * BƯỚC 4: Update các field
+     */
+    @Transactional
+    public JobResponse updateJob(UUID jobId, UUID employerId, JobCreateRequest request) {
+        log.info("🔄 Updating job: {} by employer: {}", jobId, employerId);
+
+        // BƯỚC 1: Validate job exists
+        Job job = jobRepository.findById(jobId)
+            .orElseThrow(() -> new RuntimeException("Job not found"));
+
+        // BƯỚC 2: Validate ownership
+        if (!job.getEmployerId().equals(employerId)) {
+            throw new RuntimeException("You are not authorized to update this job");
+        }
+
+        // BƯỚC 3: Validate status
+        if (job.getStatus() != Job.JobStatus.OPEN) {
+            throw new RuntimeException("Cannot update job that is not OPEN");
+        }
+
+        // BƯỚC 4: Update fields
+        job.setTitle(request.getTitle());
+        job.setDescription(request.getDescription());
+        job.setBudget(request.getBudget());
+        job.setBudgetMin(request.getBudgetMin());
+        job.setBudgetMax(request.getBudgetMax());
+        job.setDuration(request.getDuration());
+        job.setDeadline(request.getDeadline());
+
+        // Update skills if provided
+        if (request.getSkillIds() != null && !request.getSkillIds().isEmpty()) {
+            Set<Skill> updatedSkills = new HashSet<>();
+            for (String skillIdStr : request.getSkillIds()) {
+                try {
+                    UUID skillId = UUID.fromString(skillIdStr);
+                    Skill skill = skillRepository.findById(skillId)
+                        .orElseThrow(() -> new RuntimeException("Skill not found: " + skillId));
+                    updatedSkills.add(skill);
+                } catch (IllegalArgumentException e) {
+                    log.warn("Invalid skill UUID: {}", skillIdStr);
+                }
+            }
+            job.setRequiredSkills(updatedSkills);
+        }
+
+        Job updatedJob = jobRepository.save(job);
+        log.info("✅ Job updated successfully: {}", jobId);
+
+        return mapToJobResponse(updatedJob);
+    }
+
+    /**
+     * ❌ DELETE JOB - Employer xóa job
+     * 
+     * BƯỚC 1: Validate job tồn tại
+     * BƯỚC 2: Validate employer là owner
+     * BƯỚC 3: Validate chưa có proposal nào được AWARDED
+     * BƯỚC 4: Xóa job
+     */
+    @Transactional
+    public void deleteJob(UUID jobId, UUID employerId) {
+        log.info("❌ Deleting job: {} by employer: {}", jobId, employerId);
+
+        // BƯỚC 1: Validate job exists
+        Job job = jobRepository.findById(jobId)
+            .orElseThrow(() -> new RuntimeException("Job not found"));
+
+        // BƯỚC 2: Validate ownership
+        if (!job.getEmployerId().equals(employerId)) {
+            throw new RuntimeException("You are not authorized to delete this job");
+        }
+
+        // BƯỚC 3: Check if any proposal was awarded
+        // (Nếu đã award thì có project rồi, không được xóa)
+        if (job.getStatus() == Job.JobStatus.IN_PROGRESS) {
+            throw new RuntimeException("Cannot delete job that has an active project");
+        }
+
+        // BƯỚC 4: Delete job (cascade sẽ xóa proposals và conversations liên quan)
+        jobRepository.delete(job);
+        log.info("✅ Job deleted successfully: {}", jobId);
+    }
+
+    /**
+     * 🔒 CLOSE JOB - Employer đóng job (không nhận proposal nữa)
+     * 
+     * BƯỚC 1: Validate job tồn tại
+     * BƯỚC 2: Validate employer là owner
+     * BƯỚC 3: Validate job đang OPEN
+     * BƯỚC 4: Đổi status thành CLOSED
+     */
+    @Transactional
+    public JobResponse closeJob(UUID jobId, UUID employerId) {
+        log.info("🔒 Closing job: {} by employer: {}", jobId, employerId);
+
+        // BƯỚC 1: Validate job exists
+        Job job = jobRepository.findById(jobId)
+            .orElseThrow(() -> new RuntimeException("Job not found"));
+
+        // BƯỚC 2: Validate ownership
+        if (!job.getEmployerId().equals(employerId)) {
+            throw new RuntimeException("You are not authorized to close this job");
+        }
+
+        // BƯỚC 3: Validate status
+        if (job.getStatus() != Job.JobStatus.OPEN) {
+            throw new RuntimeException("Job is already closed or in progress");
+        }
+
+        // BƯỚC 4: Close job
+        job.setStatus(Job.JobStatus.CLOSED);
+        Job closedJob = jobRepository.save(job);
+        log.info("✅ Job closed successfully: {}", jobId);
+
+        return mapToJobResponse(closedJob);
     }
 }

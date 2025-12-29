@@ -4,10 +4,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, Users, DollarSign, Clock, Calendar, 
-  Star, Briefcase, MessageSquare, Award, X, AlertCircle
+  Star, Briefcase, MessageSquare, Award, X, AlertCircle, Download, Paperclip
 } from 'lucide-react';
 import { proposalApi, ProposalResponse } from '../../services/proposalApi';
 import { jobApi } from '../../services/jobApi';
+import { projectApi, FileResponse, API_BASE_URL } from '../../services/api';
 
 export function ViewProposalsPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -217,6 +218,24 @@ function ProposalCard({ proposal, onAward }: ProposalCardProps) {
   const navigate = useNavigate();
   
   const [expanded, setExpanded] = useState(false);
+  const [proposalFiles, setProposalFiles] = useState<FileResponse[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+
+  useEffect(() => {
+    loadProposalFiles();
+  }, [proposal.id]);
+
+  const loadProposalFiles = async () => {
+    try {
+      setLoadingFiles(true);
+      const files = await projectApi.getFiles('PROPOSAL', proposal.id);
+      setProposalFiles(files);
+    } catch (err) {
+      console.error('Failed to load proposal files:', err);
+    } finally {
+      setLoadingFiles(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -292,7 +311,7 @@ function ProposalCard({ proposal, onAward }: ProposalCardProps) {
       </div>
 
       {/* Cover Letter Preview */}
-      <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+      <div className="bg-white/5 border border-white/10 rounded-lg p-4 mb-4">
         <h4 className="text-sm font-medium text-gray-400 mb-2 flex items-center gap-2">
           <MessageSquare className="w-4 h-4" />
           Cover Letter
@@ -310,14 +329,48 @@ function ProposalCard({ proposal, onAward }: ProposalCardProps) {
         )}
       </div>
 
+      {/* Attached Files */}
+      {proposalFiles.length > 0 && (
+        <div className="bg-white/5 border border-white/10 rounded-lg p-4 mb-4">
+          <h4 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
+            <Paperclip className="w-4 h-4" />
+            Portfolio & Work Samples ({proposalFiles.length})
+          </h4>
+          <div className="space-y-2">
+            {proposalFiles.map((file) => (
+              <a
+                key={file.id}
+                href={`${API_BASE_URL}/api/files/download/PROPOSAL/${proposal.id}/${file.fileName}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-all group"
+              >
+                <div className="flex items-center gap-2">
+                  <Paperclip className="w-4 h-4 text-yellow-400" />
+                  <div>
+                    <p className="text-sm text-white group-hover:text-yellow-400 transition-colors">
+                      {file.fileName}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {(file.fileSize / 1024).toFixed(2)} KB
+                    </p>
+                  </div>
+                </div>
+                <Download className="w-4 h-4 text-gray-400 group-hover:text-yellow-400 transition-colors" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Action Button */}
       {proposal.status === 'PENDING' && (
         <button
           onClick={onAward}
-          className="relative overflow-hidden rounded-lg px-6 py-3 transition-all ml-4"
+          className="relative overflow-hidden rounded-lg px-6 py-3 transition-all w-full"
         >
           <div className="absolute inset-0 bg-gradient-to-r from-green-600 via-green-500 to-green-400"></div>
-          <div className="relative z-10 text-white font-medium flex items-center gap-2 whitespace-nowrap">
+          <div className="relative z-10 text-white font-medium flex items-center justify-center gap-2 whitespace-nowrap">
             <Award className="w-5 h-5" />
             Award Project
           </div>

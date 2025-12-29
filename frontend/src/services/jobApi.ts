@@ -44,7 +44,8 @@ export interface PageResponse<T> {
 
 class JobApi {
   private getAuthHeaders() {
-    const token = localStorage.getItem('token');
+    // ✅ FIX: Read from userToken first (matches UserApiClient), then fallback
+    const token = localStorage.getItem('userToken') || localStorage.getItem('token');
     return {
       'Content-Type': 'application/json',
       'Authorization': token ? `Bearer ${token}` : ''
@@ -63,10 +64,22 @@ class JobApi {
 
   // GET /api/jobs/my-jobs - Employer's jobs
   async getMyJobs(page = 0, size = 10): Promise<PageResponse<Job>> {
+    const headers = this.getAuthHeaders();
+    console.log('🔍 jobApi.getMyJobs - Headers:', {
+      hasAuthorization: !!headers.Authorization,
+      userToken: !!localStorage.getItem('userToken'),
+      token: !!localStorage.getItem('token')
+    });
+    
     const response = await fetch(
       `${API_BASE_URL}/api/jobs/my-jobs?page=${page}&size=${size}`,
-      { headers: this.getAuthHeaders() }
+      { headers }
     );
+    
+    if (!response.ok) {
+      console.error('❌ jobApi.getMyJobs - Response not OK:', response.status, response.statusText);
+    }
+    
     return response.json();
   }
 

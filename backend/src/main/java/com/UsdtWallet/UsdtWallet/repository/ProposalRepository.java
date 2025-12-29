@@ -17,6 +17,9 @@ public interface ProposalRepository extends JpaRepository<Proposal, UUID> {
     // Check if freelancer already submitted proposal for this job
     boolean existsByJobIdAndFreelancerId(UUID jobId, UUID freelancerId);
     
+    // Statistics
+    long countByStatus(ProposalStatus status);
+    
     // Get proposals for a job
     Page<Proposal> findByJobIdOrderByCreatedAtDesc(UUID jobId, Pageable pageable);
     

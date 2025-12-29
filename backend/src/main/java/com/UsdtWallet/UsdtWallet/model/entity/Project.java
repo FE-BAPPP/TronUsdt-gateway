@@ -1,6 +1,7 @@
 // Project.java
 package com.UsdtWallet.UsdtWallet.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -24,6 +25,12 @@ public class Project {
 
     @Column(name = "job_id", nullable = false)
     private UUID jobId;
+    
+    // ✅ Add relationship to Job to get title (only for DTO conversion)
+    @JsonIgnore // Prevent lazy loading exception during JSON serialization
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "job_id", insertable = false, updatable = false)
+    private Job job;
 
     @Column(name = "employer_id", nullable = false)
     private UUID employerId;
@@ -67,4 +74,6 @@ public class Project {
         CANCELLED,
         DISPUTED
     }
+    
+    // ✅ Remove broken getTitle() method - use DTO instead
 }

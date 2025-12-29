@@ -1,67 +1,81 @@
 "use client"
 
 import { NavLink } from "react-router-dom"
+import { useAuth } from "../../hooks/useAuth"
 import {
-  HomeIcon,
-  WalletIcon,
-  ArrowsRightLeftIcon,
-  ClockIcon,
-  UserGroupIcon,
-  CogIcon,
-  ShieldCheckIcon,
-  ChartBarIcon,
-} from "@heroicons/react/24/outline"
+  LayoutDashboard,
+  Briefcase,
+  Search,
+  FileText,
+  Folder,
+  User,
+  Wallet,
+  Users,
+  Settings,
+  BarChart3,
+  Shield,
+  Building,
+  Send,
+  MessageSquare,
+  Tag,
+} from "lucide-react"
+import { cn } from "../../utils/cn"
 import { motion, AnimatePresence } from "framer-motion"
 import clsx from "clsx"
-import { useAuth } from "../../hooks/useAuth"
-import { FolderOpen } from "lucide-react" // Add import
 
 interface SidebarProps {
   isOpen: boolean
   onClose: () => void
 }
 
-function buildNav(isAdmin: boolean, role?: string) {
-  const base = isAdmin ? "/admin" : "/user"
-  const nav = [{ name: "Dashboard", href: `${base}/dashboard`, icon: HomeIcon }]
-  if (!isAdmin) {
-    nav.push(
-      { name: "Wallet", href: `${base}/wallet`, icon: WalletIcon },
-      { name: "P2P Transfer", href: `${base}/p2p`, icon: ArrowsRightLeftIcon },
-      { name: "History", href: `${base}/transactions`, icon: ClockIcon },
-    )
-  }
-  // Admin extras
-  if (isAdmin) {
-    nav.push(
-      { name: "Users", href: `${base}/users`, icon: UserGroupIcon },
-      { name: "Withdrawals", href: `${base}/withdrawals`, icon: ClockIcon },
-      { name: "Tracking", href: `${base}/tracking`, icon: ChartBarIcon },
-    )
-  } else {
-    nav.push({ name: "Analytics", href: `${base}/dashboard`, icon: ChartBarIcon })
-  }
-  const settings = [
-    { name: "Profile", href: `${base}/profile`, icon: UserGroupIcon },
-    { name: "Security", href: `${base}/profile`, icon: ShieldCheckIcon },
-    { name: "Settings", href: `${base}/profile`, icon: CogIcon },
-  ]
-
-  // 🆕 ADD: Projects link for Employer & Freelancer
-  if (role === "EMPLOYER" || role === "FREELANCER") {
-    nav.push({
-      name: "Projects",
-      href: "/projects",
-      icon: FolderOpen,
-    })
-  }
-
-  return { nav, settings }
-}
-
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const { isAdmin } = useAuth()
-  const { nav: navigation, settings } = buildNav(isAdmin)
+  const { role } = useAuth()
+
+  const getNavItems = () => {
+    switch (role) {
+      case "FREELANCER":
+        return [
+          { to: "/freelancer/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+          { to: "/freelancer/jobs", icon: Search, label: "Browse Jobs" },
+          { to: "/freelancer/my-proposals", icon: FileText, label: "My Proposals" },
+          { to: "/freelancer/my-projects", icon: Folder, label: "My Projects" },
+          { to: "/chat", icon: MessageSquare, label: "Messages" },
+          { to: "/freelancer/wallet", icon: Wallet, label: "Wallet" },
+          { to: "/freelancer/freelancer-profile", icon: User, label: "Profile Settings" },
+        ]
+
+      case "EMPLOYER":
+        return [
+          { to: "/employer/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+          { to: "/employer/post-job", icon: Send, label: "Post a Job" },
+          { to: "/employer/my-jobs", icon: Briefcase, label: "My Jobs" },
+          { to: "/employer/my-projects", icon: Folder, label: "Projects" },
+          { to: "/chat", icon: MessageSquare, label: "Messages" },
+          { to: "/employer/wallet", icon: Wallet, label: "Wallet" },
+          { to: "/profile", icon: User, label: "Profile Settings" },
+        ]
+
+      case "ADMIN":
+        return [
+          { to: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+          { to: "/admin/users", icon: Users, label: "Users" },
+          { to: "/admin/tracking", icon: BarChart3, label: "Deposits & Sweep" },
+          { to: "/admin/withdrawals", icon: Shield, label: "Withdrawals" },
+          { to: "/admin/skills", icon: Tag, label: "Skills" },
+          { to: "/admin/wallet", icon: Wallet, label: "Wallet" },
+        ]
+
+      default: // USER
+        return [
+          { to: "/user/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+          { to: "/user/wallet", icon: Wallet, label: "Wallet" },
+          { to: "/user/transactions", icon: BarChart3, label: "Transactions" },
+          { to: "/profile", icon: User, label: "Profile" },
+        ]
+    }
+  }
+
+  const navItems = getNavItems()
   return (
     <>
       {/* Mobile backdrop */}
@@ -96,7 +110,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {/* Logo */}
           <div className="flex items-center h-16 px-6 border-b border-purple-500/30">
             <div className="text-xl font-bold bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-500 bg-clip-text text-transparent">
-              Binance
+              Freelance
               <span className="bg-gradient-to-r from-white via-gray-100 to-white bg-clip-text text-transparent ml-1">
                 Pay
               </span>
@@ -107,68 +121,20 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             <div>
               <h3 className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Main</h3>
-              {navigation.map((item) => (
+              {navItems.map((item) => (
                 <NavLink
-                  key={item.name}
-                  to={item.href}
+                  key={item.label}
+                  to={item.to}
                   onClick={onClose}
                   className={({ isActive }) =>
-                    clsx(
-                      "group flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all duration-300 relative overflow-hidden",
-                      isActive ? "text-yellow-300 shadow-lg shadow-yellow-400/25" : "text-gray-300 hover:text-white",
+                    cn(
+                      "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
+                      isActive ? "bg-teal-50 text-teal-700 font-medium" : "text-gray-700 hover:bg-gray-100",
                     )
                   }
                 >
-                  {({ isActive }) => (
-                    <>
-                      {isActive && (
-                        <>
-                          <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 via-yellow-300/20 to-yellow-400/20"></div>
-                          <div className="absolute inset-0 bg-gradient-to-b from-yellow-400/10 via-transparent to-yellow-400/10"></div>
-                          <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-yellow-400 to-yellow-500 rounded-l-full"></div>
-                        </>
-                      )}
-                      {!isActive && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-purple-700/0 via-purple-700/0 to-indigo-700/0 group-hover:from-purple-700/20 group-hover:via-indigo-700/20 group-hover:to-purple-700/20 transition-all duration-300"></div>
-                      )}
-                      <item.icon className="relative z-10 mr-3 h-5 w-5" />
-                      <span className="relative z-10">{item.name}</span>
-                    </>
-                  )}
-                </NavLink>
-              ))}
-            </div>
-
-            <div className="pt-6">
-              <h3 className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Account</h3>
-              {settings.map((item) => (
-                <NavLink
-                  key={item.name}
-                  to={item.href}
-                  onClick={onClose}
-                  className={({ isActive }) =>
-                    clsx(
-                      "group flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all duration-300 relative overflow-hidden",
-                      isActive ? "text-yellow-300 shadow-lg shadow-yellow-400/25" : "text-gray-300 hover:text-white",
-                    )
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      {isActive && (
-                        <>
-                          <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 via-yellow-300/20 to-yellow-400/20"></div>
-                          <div className="absolute inset-0 bg-gradient-to-b from-yellow-400/10 via-transparent to-yellow-400/10"></div>
-                          <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-yellow-400 to-yellow-500 rounded-l-full"></div>
-                        </>
-                      )}
-                      {!isActive && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-purple-700/0 via-purple-700/0 to-indigo-700/0 group-hover:from-purple-700/20 group-hover:via-indigo-700/20 group-hover:to-purple-700/20 transition-all duration-300"></div>
-                      )}
-                      <item.icon className="relative z-10 mr-3 h-5 w-5" />
-                      <span className="relative z-10">{item.name}</span>
-                    </>
-                  )}
+                  <item.icon className="w-5 h-5" />
+                  <span>{item.label}</span>
                 </NavLink>
               ))}
             </div>

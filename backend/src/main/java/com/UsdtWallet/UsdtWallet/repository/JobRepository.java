@@ -9,10 +9,16 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Repository
 public interface JobRepository extends JpaRepository<Job, UUID> {
+    
+    // Statistics methods
+    long countByStatus(Job.JobStatus status);
+    long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 
     // Find jobs by employer
     Page<Job> findByEmployerIdOrderByCreatedAtDesc(UUID employerId, Pageable pageable);

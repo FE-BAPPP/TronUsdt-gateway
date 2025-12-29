@@ -22,4 +22,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     
     @Query("SELECT u FROM User u WHERE u.username LIKE %:username%")
     Page<User> searchByUsername(@Param("username") String username, Pageable pageable);
+    
+    // Statistics methods
+    long countByIsActiveTrue();
+    long countByRole(String role);
+    long countByDateCreatedBetween(java.time.LocalDateTime start, java.time.LocalDateTime end);
 }

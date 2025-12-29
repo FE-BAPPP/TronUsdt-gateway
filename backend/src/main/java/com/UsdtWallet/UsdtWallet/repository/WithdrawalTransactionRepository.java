@@ -17,6 +17,15 @@ import java.util.UUID;
 @Repository
 public interface WithdrawalTransactionRepository extends JpaRepository<WithdrawalTransaction, Long> {
 
+    // --- Statistics methods ---
+    @Query("SELECT COALESCE(SUM(wt.netAmount), 0) FROM WithdrawalTransaction wt")
+    BigDecimal sumAllWithdrawals();
+    
+    @Query("SELECT COALESCE(SUM(wt.netAmount), 0) FROM WithdrawalTransaction wt WHERE wt.status = :status")
+    BigDecimal sumByStatus(@Param("status") String status);
+    
+    long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
     /**
      * Find withdrawal by ID and user ID
      */

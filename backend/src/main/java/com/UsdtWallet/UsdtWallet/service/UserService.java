@@ -18,6 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -126,7 +127,10 @@ public class UserService {
      */
     private void createEmployerProfile(User user) {
         EmployerProfile profile = EmployerProfile.builder()
-                .user(user)
+                .userId(user.getId())  // ✅ FIX: Use userId instead of user object
+                .jobsPosted(0)
+                .activeProjects(0)
+                .totalSpent(BigDecimal.ZERO)
                 .build();
         employerProfileRepository.save(profile);
         log.info("Employer profile created for user: {}", user.getUsername());

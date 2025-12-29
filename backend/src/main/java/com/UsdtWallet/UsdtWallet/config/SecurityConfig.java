@@ -49,6 +49,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/test/**").permitAll()
                         .requestMatchers("/api/dev/**").permitAll()
                         .requestMatchers("/api/notifications/stream").permitAll()
+                        .requestMatchers("/ws/**").permitAll() // WebSocket endpoint
+                        .requestMatchers("/api/files/download/**").permitAll() // File downloads
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/health").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()

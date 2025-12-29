@@ -12,6 +12,7 @@
   "dependencies": {
     "@headlessui/react": "^2.2.7",
     "@heroicons/react": "^2.2.0",
+    "@stomp/stompjs": "^7.2.1",
     "@tronweb3/tronwallet-adapter-tronlink": "^1.1.12",
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^5.0.3",
@@ -44,6 +45,8 @@
     "recharts": "^3.1.2",
     "redis": "^5.8.2",
     "sequelize": "^6.37.7",
+    "sockjs-client": "^1.6.1",
+    "tailwind-merge": "^3.4.0",
     "tronweb": "^6.0.4",
     "ts-node": "^10.9.2",
     "uuid": "^11.1.0",

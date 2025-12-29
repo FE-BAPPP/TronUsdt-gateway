@@ -35,13 +35,21 @@ public class PointsService {
     private static final String TRANSFER_LOCK_KEY = "transfer:lock:";
 
     /**
-     * Credit points for USDT deposit
+     * 💰 LUỒNG DEPOSIT: Cộng Points khi user nạp USDT
+     * 
+     * Employer nạp USDT → hệ thống verify → cộng Points (1 USDT = 1 Point)
+     * 
+     * @param userId ID của user nhận points
+     * @param pointsAmount Số lượng points cộng vào (= USDT amount)
+     * @param transactionId Transaction ID blockchain (để tránh duplicate)
+     * @param usdtAmount Số USDT thực tế đã nạp
+     * @return true nếu thành công
      */
     @Transactional
     public boolean creditPointsForDeposit(UUID userId, BigDecimal pointsAmount,
                                         String transactionId, BigDecimal usdtAmount) {
         try {
-            // Check if already credited
+            // ✅ Kiểm tra idempotency - tránh cộng duplicate
             if (pointsLedgerRepository.existsByTransactionId(transactionId)) {
                 log.warn("Points already credited for transaction: {}", transactionId);
                 return false;
@@ -77,123 +85,10 @@ public class PointsService {
         }
     }
 
-    /**
-     * Transfer points between users (P2P)
-     */
-    @Transactional
-    public boolean transferPoints(UUID fromUserId, UUID toUserId, BigDecimal amount, String description) {
-        String lockKey = TRANSFER_LOCK_KEY + fromUserId;
-
-        try {
-            // Acquire lock to prevent double spending
-            Boolean lockAcquired = redisTemplate.opsForValue()
-                .setIfAbsent(lockKey, "locked", 30, TimeUnit.SECONDS);
-
-            if (!Boolean.TRUE.equals(lockAcquired)) {
-                log.warn("Transfer already in progress for user: {}", fromUserId);
-                return false;
-            }
-
-            // Validate users exist (add user validation if needed)
-
-            // Check sender balance
-            BigDecimal senderBalance = getCurrentBalance(fromUserId);
-            if (senderBalance.compareTo(amount) < 0) {
-                log.warn("Insufficient balance for transfer: user={}, balance={}, amount={}",
-                    fromUserId, senderBalance, amount);
-                return false;
-            }
-
-            // Calculate fee
-            BigDecimal fee = amount.multiply(transferFeeRate);
-            BigDecimal netAmount = amount.subtract(fee);
-
-            if (netAmount.compareTo(BigDecimal.ZERO) <= 0) {
-                log.warn("Transfer amount too small after fee: {}", netAmount);
-                return false;
-            }
-
-            // Generate reference ID for this P2P transfer
-            String referenceId = UUID.randomUUID().toString();
-
-            // Debit from sender
-            BigDecimal senderNewBalance = senderBalance.subtract(amount);
-            PointsLedger senderEntry = PointsLedger.builder()
-                .userId(fromUserId)
-                .referenceId(referenceId)
-                .transactionType(PointsLedger.PointsTransactionType.P2P_SEND)
-                .amount(amount.negate()) // Negative for debit
-                .balanceBefore(senderBalance)
-                .balanceAfter(senderNewBalance)
-                .toUserId(toUserId)
-                .description(description != null ? description : "P2P transfer sent")
-                .status(PointsLedger.PointsTransactionStatus.COMPLETED)
-                .build();
-
-            pointsLedgerRepository.save(senderEntry);
-
-            // Credit to receiver
-            BigDecimal receiverBalance = getCurrentBalance(toUserId);
-            BigDecimal receiverNewBalance = receiverBalance.add(netAmount);
-
-            PointsLedger receiverEntry = PointsLedger.builder()
-                .userId(toUserId)
-                .referenceId(referenceId)
-                .transactionType(PointsLedger.PointsTransactionType.P2P_RECEIVE)
-                .amount(netAmount)
-                .balanceBefore(receiverBalance)
-                .balanceAfter(receiverNewBalance)
-                .fromUserId(fromUserId)
-                .description(description != null ? description : "P2P transfer received")
-                .status(PointsLedger.PointsTransactionStatus.COMPLETED)
-                .build();
-
-            pointsLedgerRepository.save(receiverEntry);
-
-            // Handle fee if applicable
-            if (fee.compareTo(BigDecimal.ZERO) > 0) {
-                // Fee entry for sender (additional debit)
-                PointsLedger feeEntry = PointsLedger.builder()
-                    .userId(fromUserId)
-                    .referenceId(referenceId)
-                    .transactionType(PointsLedger.PointsTransactionType.ADJUSTMENT)
-                    .amount(fee.negate())
-                    .balanceBefore(senderNewBalance)
-                    .balanceAfter(senderNewBalance) // Already calculated above
-                    .description("P2P transfer fee")
-                    .status(PointsLedger.PointsTransactionStatus.COMPLETED)
-                    .build();
-
-                pointsLedgerRepository.save(feeEntry);
-            }
-
-            // Update cached balances
-            updateBalanceCache(fromUserId, senderNewBalance);
-            updateBalanceCache(toUserId, receiverNewBalance);
-
-            log.info("✅ P2P transfer completed: {} points from {} to {} (net: {}, fee: {})",
-                amount, fromUserId, toUserId, netAmount, fee);
-
-            // Send notifications to both users
-            notificationService.notifyPointsTransferred(fromUserId, amount, "user", false);
-            notificationService.notifyPointsTransferred(toUserId, amount, "user", true);
-
-            // Send balance updates
-            BigDecimal fromBalance = getCurrentBalance(fromUserId);
-            BigDecimal toBalance = getCurrentBalance(toUserId);
-            notificationService.notifyBalanceUpdate(fromUserId, fromBalance);
-            notificationService.notifyBalanceUpdate(toUserId, toBalance);
-
-            return true;
-
-        } catch (Exception e) {
-            log.error("Error in P2P transfer: from={}, to={}, amount={}", fromUserId, toUserId, amount, e);
-            return false;
-        } finally {
-            // Release lock
-            redisTemplate.delete(lockKey);
-        }
-    }
+    // ========================================================================
+    // LUỒNG NGHIỆP VỤ CHÍNH: DEPOSIT → ESCROW → MILESTONE PAYMENT → WITHDRAWAL
+    // ========================================================================
+    // P2P Transfer đã được XÓA - không thuộc luồng nghiệp vụ freelance platform
 
     /**
      * Get user's current points balance
@@ -371,27 +266,18 @@ public class PointsService {
     }
 
     /**
-     * Get user's P2P transaction history
-     */
-    public List<PointsLedger> getP2PHistory(UUID userId) {
-        return pointsLedgerRepository.findP2PTransactionsByUserId(userId);
-    }
-
-    /**
-     * Get total statistics for user
+     * 📊 Thống kê tổng quan cho user
+     * - Tổng nạp (deposits)
+     * - Số dư hiện tại
+     * - Tổng thu nhập từ projects (escrow releases)
      */
     public Map<String, Object> getUserStats(UUID userId) {
         BigDecimal currentBalance = getCurrentBalance(userId);
         BigDecimal totalDeposits = pointsLedgerRepository.getTotalDepositCredits(userId);
-        BigDecimal totalSent = pointsLedgerRepository.getTotalP2PSent(userId);
-        BigDecimal totalReceived = pointsLedgerRepository.getTotalP2PReceived(userId);
 
         return Map.of(
             "currentBalance", currentBalance,
-            "totalDeposits", totalDeposits,
-            "totalSent", totalSent.abs(), // Make positive for display
-            "totalReceived", totalReceived,
-            "netP2P", totalReceived.subtract(totalSent.abs())
+            "totalDeposits", totalDeposits
         );
     }
 
@@ -492,22 +378,32 @@ public class PointsService {
     }
 
     /**
-     * Lock points for project escrow
+     * 🔒 LUỒNG ESCROW: Lock points khi Employer hire Freelancer
+     * 
+     * Khi Employer chấp nhận proposal:
+     * 1. Lock số tiền project vào escrow (PENDING status)
+     * 2. Points vẫn trong ví nhưng không thể rút
+     * 3. Chỉ được release khi milestone approved
+     * 
+     * @param userId ID của Employer
+     * @param amount Số tiền cần lock (= agreed amount)
+     * @param projectId ID của project
+     * @return true nếu lock thành công
      */
     @Transactional
     public boolean lockPointsForProject(UUID userId, BigDecimal amount, String projectId) {
         String lockTxId = "PROJECT_ESCROW_" + projectId;
         
-        // Check if already locked
+        // ✅ Idempotency check
         if (pointsLedgerRepository.existsByTransactionId(lockTxId)) {
             log.info("Escrow lock already exists: {}", lockTxId);
             return true;
         }
         
-        // Check available balance
+        // ✅ Kiểm tra số dư available (trừ các lock khác)
         BigDecimal available = getAvailableBalance(userId);
         if (available.compareTo(amount) < 0) {
-            throw new RuntimeException("Insufficient available balance for escrow lock");
+            throw new RuntimeException("Insufficient available balance for escrow lock. Available: " + available + ", Required: " + amount);
         }
         
         // Create PENDING lock entry
@@ -532,7 +428,19 @@ public class PointsService {
     }
 
     /**
-     * Release escrow funds to freelancer
+     * ✅ LUỒNG MILESTONE PAYMENT: Giải ngân từ Escrow cho Freelancer
+     * 
+     * Khi Employer approve milestone:
+     * 1. Đóng lock escrow (PENDING → COMPLETED)
+     * 2. Trừ tiền từ ví Employer
+     * 3. Cộng tiền vào ví Freelancer
+     * 4. Ghi nhận transaction cho cả 2 bên
+     * 
+     * @param employerId ID của Employer (người trả tiền)
+     * @param freelancerId ID của Freelancer (người nhận tiền)
+     * @param amount Số tiền milestone
+     * @param projectId ID của project
+     * @return true nếu release thành công
      */
     @Transactional
     public boolean releaseEscrowToFreelancer(UUID employerId, UUID freelancerId, 
@@ -540,17 +448,18 @@ public class PointsService {
         String lockTxId = "PROJECT_ESCROW_" + projectId;
         String releaseTxId = "ESCROW_RELEASE_" + projectId + "_" + System.currentTimeMillis();
         
-        // 1. Close the lock (mark as COMPLETED)
+        // BƯỚC 1: Đóng escrow lock (PENDING → COMPLETED)
         Optional<PointsLedger> lockOpt = pointsLedgerRepository.findFirstByTransactionId(lockTxId);
         if (lockOpt.isPresent()) {
             PointsLedger lock = lockOpt.get();
             if (lock.getStatus() == PointsLedger.PointsTransactionStatus.PENDING) {
                 lock.setStatus(PointsLedger.PointsTransactionStatus.COMPLETED);
                 pointsLedgerRepository.save(lock);
+                log.info("🔓 Escrow lock closed: {}", lockTxId);
             }
         }
         
-        // 2. Deduct from employer
+        // BƯỚC 2: Trừ tiền từ ví Employer (DEBIT)
         BigDecimal employerBalance = getCurrentBalance(employerId);
         BigDecimal employerNewBalance = employerBalance.subtract(amount);
         
@@ -558,18 +467,19 @@ public class PointsService {
             .userId(employerId)
             .transactionId(releaseTxId + "_DEBIT")
             .transactionType(PointsLedger.PointsTransactionType.ESCROW_RELEASE)
-            .amount(amount.negate())
+            .amount(amount.negate()) // Số âm = trừ tiền
             .balanceBefore(employerBalance)
             .balanceAfter(employerNewBalance)
             .toUserId(freelancerId)
-            .description("Payment released to freelancer for project " + projectId)
+            .description("💸 Milestone payment to freelancer - Project " + projectId)
             .status(PointsLedger.PointsTransactionStatus.COMPLETED)
             .build();
         
         pointsLedgerRepository.save(employerDebit);
         updateBalanceCache(employerId, employerNewBalance);
+        log.info("💸 Deducted {} from Employer {}", amount, employerId);
         
-        // 3. Credit to freelancer
+        // BƯỚC 3: Cộng tiền vào ví Freelancer (CREDIT)
         BigDecimal freelancerBalance = getCurrentBalance(freelancerId);
         BigDecimal freelancerNewBalance = freelancerBalance.add(amount);
         
@@ -577,20 +487,172 @@ public class PointsService {
             .userId(freelancerId)
             .transactionId(releaseTxId + "_CREDIT")
             .transactionType(PointsLedger.PointsTransactionType.ESCROW_RELEASE)
-            .amount(amount)
+            .amount(amount) // Số dương = nhận tiền
             .balanceBefore(freelancerBalance)
             .balanceAfter(freelancerNewBalance)
             .fromUserId(employerId)
-            .description("Payment received for project " + projectId)
+            .description("💰 Milestone payment received - Project " + projectId)
             .status(PointsLedger.PointsTransactionStatus.COMPLETED)
             .build();
         
         pointsLedgerRepository.save(freelancerCredit);
         updateBalanceCache(freelancerId, freelancerNewBalance);
+        log.info("💰 Credited {} to Freelancer {}", amount, freelancerId);
         
-        log.info("✅ Escrow released: {} USDT from {} to {} for project {}", 
+        log.info("✅ MILESTONE PAYMENT COMPLETED: {} Points | Employer {} → Freelancer {} | Project {}", 
             amount, employerId, freelancerId, projectId);
         
+        return true;
+    }
+
+    /**
+     * Refund escrow to employer
+     */
+    @Transactional
+    public boolean refundEscrow(UUID employerId, UUID freelancerId, 
+                               BigDecimal amount, String projectId) {
+        String lockTxId = "PROJECT_ESCROW_" + projectId;
+        String refundTxId = "ESCROW_REFUND_" + projectId + "_" + System.currentTimeMillis();
+        
+        // 1. Close the lock
+        Optional<PointsLedger> lockOpt = pointsLedgerRepository.findFirstByTransactionId(lockTxId);
+        if (lockOpt.isPresent()) {
+            PointsLedger lock = lockOpt.get();
+            if (lock.getStatus() == PointsLedger.PointsTransactionStatus.PENDING) {
+                lock.setStatus(PointsLedger.PointsTransactionStatus.CANCELLED);
+                pointsLedgerRepository.save(lock);
+            }
+        }
+        
+        // 2. Refund to employer
+        BigDecimal employerBalance = getCurrentBalance(employerId);
+        BigDecimal employerNewBalance = employerBalance.add(amount);
+        
+        PointsLedger refund = PointsLedger.builder()
+            .userId(employerId)
+            .transactionId(refundTxId)
+            .transactionType(PointsLedger.PointsTransactionType.ESCROW_REFUND)
+            .amount(amount)
+            .balanceBefore(employerBalance)
+            .balanceAfter(employerNewBalance)
+            .description("Refund from project " + projectId)
+            .status(PointsLedger.PointsTransactionStatus.COMPLETED)
+            .build();
+        
+        pointsLedgerRepository.save(refund);
+        updateBalanceCache(employerId, employerNewBalance);
+        
+        log.info("✅ Escrow refunded: {} USDT to employer {} for project {}", 
+            amount, employerId, projectId);
+        
+        return true;
+    }
+
+    /**
+     * Lock funds to escrow for milestone
+     * 
+     * @param employerId ID của employer
+     * @param projectId ID của project
+     * @param milestoneId ID của milestone
+     * @param amount Số tiền cần lock
+     * @return true if successful
+     */
+    @Transactional
+    public boolean lockFundsToEscrow(UUID employerId, UUID projectId, UUID milestoneId, BigDecimal amount) {
+        // Check balance
+        BigDecimal currentBalance = getCurrentBalance(employerId);
+        if (currentBalance.compareTo(amount) < 0) {
+            throw new RuntimeException("Insufficient balance to lock funds");
+        }
+
+        // Create lock transaction
+        BigDecimal newBalance = currentBalance.subtract(amount);
+        String transactionId = "ESCROW_LOCK_" + milestoneId;
+
+        PointsLedger lock = PointsLedger.builder()
+                .userId(employerId)
+                .transactionId(transactionId)
+                .transactionType(PointsLedger.PointsTransactionType.ESCROW_LOCK)
+                .amount(amount.negate()) // Negative amount = deduction
+                .balanceBefore(currentBalance)
+                .balanceAfter(newBalance)
+                .description("Lock funds for milestone " + milestoneId)
+                .referenceId(milestoneId.toString())
+                .status(PointsLedger.PointsTransactionStatus.COMPLETED)
+                .build();
+
+        pointsLedgerRepository.save(lock);
+        updateBalanceCache(employerId, newBalance);
+
+        log.info("✅ Locked {} PTS from employer {} for milestone {}", amount, employerId, milestoneId);
+        return true;
+    }
+
+    /**
+     * Release escrow to freelancer for milestone
+     * 
+     * @param freelancerId ID của freelancer
+     * @param projectId ID của project
+     * @param milestoneId ID của milestone
+     * @param amount Số tiền release
+     * @return true if successful
+     */
+    @Transactional
+    public boolean releaseEscrowToFreelancer(UUID freelancerId, UUID projectId, UUID milestoneId, BigDecimal amount) {
+        BigDecimal currentBalance = getCurrentBalance(freelancerId);
+        BigDecimal newBalance = currentBalance.add(amount);
+        String transactionId = "ESCROW_RELEASE_" + milestoneId;
+
+        PointsLedger release = PointsLedger.builder()
+                .userId(freelancerId)
+                .transactionId(transactionId)
+                .transactionType(PointsLedger.PointsTransactionType.ESCROW_RELEASE)
+                .amount(amount)
+                .balanceBefore(currentBalance)
+                .balanceAfter(newBalance)
+                .description("Payment for milestone " + milestoneId)
+                .referenceId(milestoneId.toString())
+                .status(PointsLedger.PointsTransactionStatus.COMPLETED)
+                .build();
+
+        pointsLedgerRepository.save(release);
+        updateBalanceCache(freelancerId, newBalance);
+
+        log.info("✅ Released {} PTS to freelancer {} for milestone {}", amount, freelancerId, milestoneId);
+        return true;
+    }
+
+    /**
+     * Refund escrow to employer
+     * 
+     * @param employerId ID của employer
+     * @param projectId ID của project
+     * @param milestoneId ID của milestone
+     * @param amount Số tiền refund
+     * @return true if successful
+     */
+    @Transactional
+    public boolean refundEscrowToEmployer(UUID employerId, UUID projectId, UUID milestoneId, BigDecimal amount) {
+        BigDecimal currentBalance = getCurrentBalance(employerId);
+        BigDecimal newBalance = currentBalance.add(amount);
+        String transactionId = "ESCROW_REFUND_" + milestoneId;
+
+        PointsLedger refund = PointsLedger.builder()
+                .userId(employerId)
+                .transactionId(transactionId)
+                .transactionType(PointsLedger.PointsTransactionType.ESCROW_REFUND)
+                .amount(amount)
+                .balanceBefore(currentBalance)
+                .balanceAfter(newBalance)
+                .description("Refund for milestone " + milestoneId)
+                .referenceId(milestoneId.toString())
+                .status(PointsLedger.PointsTransactionStatus.COMPLETED)
+                .build();
+
+        pointsLedgerRepository.save(refund);
+        updateBalanceCache(employerId, newBalance);
+
+        log.info("✅ Refunded {} PTS to employer {} for milestone {}", amount, employerId, milestoneId);
         return true;
     }
 }

@@ -7,6 +7,18 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
+export interface FileResponse {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  mimeType: string;
+  uploadedBy: string;
+  entityType: 'JOB' | 'PROPOSAL' | 'PROJECT' | 'MILESTONE';
+  entityId: string;
+  createdAt: string;
+}
+
 // Base API Client
 class BaseApiClient {
   protected baseURL: string;
@@ -33,7 +45,8 @@ class BaseApiClient {
     return localStorage.getItem(this.tokenKey);
   }
 
-  protected async request<T>(
+  // ✅ Make this public so it can be used from outside
+  public async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
@@ -188,9 +201,6 @@ class UserApiClient extends BaseApiClient {
     return this.request<any>(`/api/points/history?limit=${limit}`);
   }
 
-  async getP2PHistory() {
-    return this.request<any>('/api/points/p2p-history');
-  }
 
   async transferPoints(data: { 
     toUserId: string; 
@@ -576,8 +586,31 @@ async function apiRequest<T>(
 ): Promise<ApiResponse<T>> {
   const url = `${API_BASE_URL}${endpoint}`;
   
-  // ✅ Load token from userToken first, fallback to adminToken
-  const token = localStorage.getItem('userToken') || localStorage.getItem('adminToken');
+  // ✅ FIX: Check all possible token keys in order
+  const token = localStorage.getItem('userToken') || 
+                localStorage.getItem('token') || 
+                localStorage.getItem('adminToken');
+  
+  // 🐛 DEBUG: Log token status and decode it
+  console.log('🔑 API Request Debug:', {
+    endpoint,
+    hasToken: !!token,
+    tokenKeys: {
+      userToken: !!localStorage.getItem('userToken'),
+      token: !!localStorage.getItem('token'),
+      adminToken: !!localStorage.getItem('adminToken'),
+    }
+  });
+  
+  // Decode JWT to check claims
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      console.log('🔓 JWT Payload:', payload);
+    } catch (e) {
+      console.error('❌ Failed to decode JWT:', e);
+    }
+  }
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -638,7 +671,7 @@ async function apiRequest<T>(
   }
 }
 
-// 🆕 Project & Milestone APIs (UPDATED)
+// 🆕 Project & Milestone APIs (UPDATED with all CRUD operations)
 export const projectApi = {
   // Get employer's projects
   async getEmployerProjects(page = 0, size = 20) {
@@ -660,7 +693,119 @@ export const projectApi = {
     return apiRequest<any>(`/api/milestones/project/${projectId}`);
   },
 
-  // Release milestone (Employer only)
+  // 🆕 Create milestone (Employer)
+  async createMilestone(projectId: string, data: {
+    title: string;
+    description?: string;
+    amount: number;
+    dueDate?: string;
+  }) {
+    return apiRequest<any>(`/api/milestones/project/${projectId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // 🆕 Update milestone (Employer)
+  async updateMilestone(milestoneId: string, data: {
+    title?: string;
+    description?: string;
+    amount?: number;
+    dueDate?: string;
+  }) {
+    return apiRequest<any>(`/api/milestones/${milestoneId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // 🆕 Delete milestone (Employer)
+  async deleteMilestone(milestoneId: string) {
+    return apiRequest<any>(`/api/milestones/${milestoneId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // 🆕 Start working on milestone (Freelancer) - Changes status PENDING → IN_PROGRESS
+  async startMilestone(milestoneId: string) {
+    return apiRequest<any>(`/api/milestones/${milestoneId}/start`, {
+      method: 'POST',
+    });
+  },
+
+  // 🆕 Submit milestone for review (Freelancer)
+  async submitMilestone(milestoneId: string, data: {
+    deliverables: string;
+    notes?: string;
+  }) {
+    return apiRequest<any>(`/api/milestones/${milestoneId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // 🆕 Approve milestone (Employer)
+  async approveMilestone(milestoneId: string) {
+    return apiRequest<any>(`/api/milestones/${milestoneId}/approve`, {
+      method: 'POST',
+    });
+  },
+
+  // 🆕 Reject milestone (Employer)
+  async rejectMilestone(milestoneId: string, data: { reason: string }) {
+    return apiRequest<any>(`/api/milestones/${milestoneId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // 📎 File Upload
+  async uploadFile(file: File, entityType: 'JOB' | 'PROPOSAL' | 'PROJECT' | 'MILESTONE', entityId: string): Promise<FileResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('entityType', entityType);
+    formData.append('entityId', entityId);
+
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/api/files/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to upload file');
+    }
+
+    return response.json();
+  },
+
+  // 📎 Get files by entity
+  async getFiles(entityType: 'JOB' | 'PROPOSAL' | 'PROJECT' | 'MILESTONE', entityId: string): Promise<FileResponse[]> {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/api/files/${entityType}/${entityId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch files');
+    }
+
+    return response.json();
+  },
+
+  // 📎 Get download URL for a file
+  getDownloadUrl(entityType: string, entityId: string, filename: string): string {
+    return `${API_BASE_URL}/api/files/download/${entityType}/${entityId}/${filename}`;
+  },
+
+  // Release milestone (Employer only) - existing
   async releaseMilestone(milestoneId: string) {
     return apiRequest<any>(`/api/milestones/${milestoneId}/release`, {
       method: 'POST',

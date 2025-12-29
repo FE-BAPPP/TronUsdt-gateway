@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
 import { userApi } from "../../services/api"
+import { skillApi, Skill } from "../../services/skillApi"
 import {
   Briefcase,
   DollarSign,
@@ -19,6 +20,11 @@ export function PostJobPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
+  
+  // 🆕 Skills state
+  const [allSkills, setAllSkills] = useState<Skill[]>([])
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([])
+  const [skillsLoading, setSkillsLoading] = useState(true)
 
   const [formData, setFormData] = useState({
     title: "",
@@ -26,8 +32,33 @@ export function PostJobPage() {
     budget: "",
     type: "FIXED_PRICE",
     duration: "",
-    skills: "",
   })
+  
+  // 🆕 Load skills on mount
+  useEffect(() => {
+    loadSkills()
+  }, [])
+  
+  const loadSkills = async () => {
+    try {
+      setSkillsLoading(true)
+      const data = await skillApi.getAllSkills()
+      setAllSkills(data)
+    } catch (err: any) {
+      console.error("Failed to load skills:", err)
+      setError("Failed to load skills. You can still post the job without selecting skills.")
+    } finally {
+      setSkillsLoading(false)
+    }
+  }
+  
+  const toggleSkill = (skillId: string) => {
+    setSelectedSkills(prev =>
+      prev.includes(skillId)
+        ? prev.filter(id => id !== skillId)
+        : [...prev, skillId]
+    )
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,11 +66,6 @@ export function PostJobPage() {
     setLoading(true)
 
     try {
-      const skillsArray = formData.skills
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0)
-
       const response = await userApi.request("/api/jobs", {
         method: "POST",
         body: JSON.stringify({
@@ -48,11 +74,13 @@ export function PostJobPage() {
           budget: parseFloat(formData.budget),
           type: formData.type,
           duration: formData.duration,
-          skills: skillsArray,
+          skillIds: selectedSkills,  // ✅ Send selected skill UUIDs
         }),
       })
 
       if (response.success) {
+        const jobId = response.data?.id || response.data
+
         setSuccess(true)
         setTimeout(() => {
           navigate("/employer/my-jobs")
@@ -230,24 +258,48 @@ export function PostJobPage() {
               </div>
             </div>
 
-            {/* Skills */}
+            {/* Skills - Multi-select with database */}
             <div>
               <label className="block text-gray-300 text-sm font-medium mb-2">
                 <Tag className="w-4 h-4 inline mr-2" />
-                Required Skills
+                Required Skills {selectedSkills.length > 0 && `(${selectedSkills.length} selected)`}
               </label>
-              <input
-                type="text"
-                value={formData.skills}
-                onChange={(e) =>
-                  setFormData({ ...formData, skills: e.target.value })
-                }
-                className="ui-input"
-                placeholder="e.g., React, Node.js, TypeScript (comma-separated)"
-              />
-              <p className="text-sm text-gray-400 mt-1">
-                Separate skills with commas
-              </p>
+              
+              {skillsLoading ? (
+                <div className="ui-input flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-400"></div>
+                  <span className="ml-2 text-gray-400">Loading skills...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-4 bg-white/5 rounded-xl border border-white/10 max-h-60 overflow-y-auto">
+                  {allSkills.length === 0 ? (
+                    <div className="col-span-full text-center py-4 text-gray-400">
+                      No skills available. Contact admin to add skills.
+                    </div>
+                  ) : (
+                    allSkills.map((skill) => (
+                      <button
+                        key={skill.id}
+                        type="button"
+                        onClick={() => toggleSkill(skill.id)}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                          selectedSkills.includes(skill.id)
+                            ? "bg-blue-500/20 border-2 border-blue-400 text-blue-300"
+                            : "bg-white/5 border border-white/20 text-gray-300 hover:bg-white/10"
+                        }`}
+                      >
+                        {skill.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+              
+              {selectedSkills.length === 0 && !skillsLoading && (
+                <p className="text-sm text-gray-400 mt-2">
+                  💡 Select at least one skill to help freelancers find your job
+                </p>
+              )}
             </div>
 
             {/* Submit */}

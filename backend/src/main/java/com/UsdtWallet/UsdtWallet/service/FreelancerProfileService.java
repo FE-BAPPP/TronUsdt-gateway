@@ -119,4 +119,55 @@ public class FreelancerProfileService {
             .updatedAt(profile.getUpdatedAt())
             .build();
     }
+
+    /**
+     * 📈 INCREMENT JOBS COMPLETED - Called after project completion
+     */
+    @Transactional
+    public void incrementJobsCompleted(UUID userId) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) return;
+        
+        freelancerProfileRepository.findByUser(user).ifPresent(profile -> {
+            profile.setJobsCompleted((profile.getJobsCompleted() != null ? profile.getJobsCompleted() : 0) + 1);
+            freelancerProfileRepository.save(profile);
+            log.debug("📈 Incremented jobs_completed for freelancer: {}", userId);
+        });
+    }
+
+    /**
+     * 💰 ADD TO TOTAL EARNINGS - Called after milestone payment release
+     */
+    @Transactional
+    public void addToTotalEarnings(UUID userId, BigDecimal amount) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) return;
+        
+        freelancerProfileRepository.findByUser(user).ifPresent(profile -> {
+            BigDecimal currentEarnings = profile.getTotalEarnings() != null ? profile.getTotalEarnings() : BigDecimal.ZERO;
+            profile.setTotalEarnings(currentEarnings.add(amount));
+            freelancerProfileRepository.save(profile);
+            log.debug("💰 Added {} to total_earnings for freelancer: {}", amount, userId);
+        });
+    }
+
+    /**
+     * ⭐ UPDATE AVERAGE RATING - Called after new review
+     */
+    @Transactional
+    public void updateAverageRating(UUID userId, BigDecimal newRating, int totalReviews) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) return;
+        
+        freelancerProfileRepository.findByUser(user).ifPresent(profile -> {
+            BigDecimal currentAvg = profile.getAvgRating() != null ? profile.getAvgRating() : BigDecimal.ZERO;
+            BigDecimal currentTotal = currentAvg.multiply(BigDecimal.valueOf(totalReviews - 1));
+            BigDecimal newTotal = currentTotal.add(newRating);
+            BigDecimal newAvg = newTotal.divide(BigDecimal.valueOf(totalReviews), 2, java.math.RoundingMode.HALF_UP);
+            
+            profile.setAvgRating(newAvg);
+            freelancerProfileRepository.save(profile);
+            log.debug("⭐ Updated avg_rating to {} for freelancer: {}", newAvg, userId);
+        });
+    }
 }

@@ -155,4 +155,65 @@ public class ProposalController {
                 .build());
         }
     }
+
+    /**
+     * 🔄 PUT /api/proposals/{proposalId} - Freelancer cập nhật proposal của mình
+     * 
+     * Chỉ có thể update khi proposal vẫn PENDING (chưa được xét)
+     */
+    @PutMapping("/{proposalId}")
+    @PreAuthorize("hasRole('FREELANCER')")
+    public ResponseEntity<ApiResponse<ProposalResponse>> updateProposal(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @PathVariable UUID proposalId,
+            @Valid @RequestBody ProposalCreateRequest request) {
+        
+        try {
+            ProposalResponse response = proposalService.updateProposal(
+                proposalId, userPrincipal.getId(), request);
+            
+            return ResponseEntity.ok(ApiResponse.<ProposalResponse>builder()
+                .success(true)
+                .message("Proposal updated successfully")
+                .data(response)
+                .build());
+        } catch (RuntimeException e) {
+            log.error("Failed to update proposal {}: {}", proposalId, e.getMessage());
+            return ResponseEntity.badRequest().body(ApiResponse.<ProposalResponse>builder()
+                .success(false)
+                .message(e.getMessage())
+                .build());
+        }
+    }
+
+    /**
+     * ❌ POST /api/proposals/{proposalId}/withdraw - Freelancer rút proposal
+     * 
+     * Freelancer có thể withdraw proposal nếu:
+     * - Proposal vẫn PENDING (chưa được award)
+     * - Không muốn làm job nữa
+     */
+    @PostMapping("/{proposalId}/withdraw")
+    @PreAuthorize("hasRole('FREELANCER')")
+    public ResponseEntity<ApiResponse<ProposalResponse>> withdrawProposal(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @PathVariable UUID proposalId) {
+        
+        try {
+            ProposalResponse response = proposalService.withdrawProposal(
+                proposalId, userPrincipal.getId());
+            
+            return ResponseEntity.ok(ApiResponse.<ProposalResponse>builder()
+                .success(true)
+                .message("Proposal withdrawn successfully")
+                .data(response)
+                .build());
+        } catch (RuntimeException e) {
+            log.error("Failed to withdraw proposal {}: {}", proposalId, e.getMessage());
+            return ResponseEntity.badRequest().body(ApiResponse.<ProposalResponse>builder()
+                .success(false)
+                .message(e.getMessage())
+                .build());
+        }
+    }
 }

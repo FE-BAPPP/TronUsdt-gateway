@@ -90,30 +90,9 @@ public class PointsController {
     }
 
     /**
-     * Get user's P2P transaction history
-     */
-    @GetMapping("/p2p-history")
-    public ResponseEntity<Map<String, Object>> getP2PHistory(@AuthenticationPrincipal UserPrincipal userPrincipal) {
-        try {
-            java.util.UUID userId = userPrincipal.getId();
-            List<PointsLedger> p2pHistory = pointsService.getP2PHistory(userId);
-
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "data", p2pHistory
-            ));
-
-        } catch (Exception e) {
-            log.error("Error getting P2P history for user: {}", userPrincipal.getId(), e);
-            return ResponseEntity.ok(Map.of(
-                "success", false,
-                "message", "Failed to get P2P history"
-            ));
-        }
-    }
-
-    /**
-     * Get user statistics
+     * 📊 Lấy thống kê tổng quan của user
+     * - Số dư hiện tại
+     * - Tổng nạp
      */
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getUserStats(@AuthenticationPrincipal UserPrincipal userPrincipal) {
@@ -135,115 +114,4 @@ public class PointsController {
         }
     }
 
-    /**
-     * Transfer points to another user (P2P)
-     */
-    @PostMapping("/transfer")
-    public ResponseEntity<Map<String, Object>> transferPoints(
-            @AuthenticationPrincipal UserPrincipal userPrincipal,
-            @Valid @RequestBody TransferRequest request) {
-
-        try {
-            java.util.UUID fromUserId = userPrincipal.getId();
-            java.util.UUID toUserUuid;
-            try {
-                toUserUuid = java.util.UUID.fromString(request.getToUserId());
-            } catch (Exception ex) {
-                return ResponseEntity.ok(Map.of(
-                    "success", false,
-                    "message", "Invalid recipient user ID format"
-                ));
-            }
-
-            // Verify password like Binance
-            var user = userRepository.findById(userPrincipal.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-            if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-                return ResponseEntity.ok(Map.of(
-                    "success", false,
-                    "message", "Invalid password"
-                ));
-            }
-
-            // Validate sufficient balance
-            if (!pointsService.hasSufficientBalance(fromUserId, request.getAmount())) {
-                return ResponseEntity.ok(Map.of(
-                    "success", false,
-                    "message", "Insufficient balance"
-                ));
-            }
-
-            // Prevent self-transfer
-            if (fromUserId.equals(toUserUuid)) {
-                return ResponseEntity.ok(Map.of(
-                    "success", false,
-                    "message", "Cannot transfer to yourself"
-                ));
-            }
-
-            boolean success = pointsService.transferPoints(
-                fromUserId,
-                toUserUuid,
-                request.getAmount(),
-                request.getDescription()
-            );
-
-            if (success) {
-                log.info("P2P transfer successful: {} points from {} to {}",
-                    request.getAmount(), fromUserId, toUserUuid);
-
-                return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Transfer completed successfully",
-                    "data", Map.of(
-                        "amount", request.getAmount(),
-                        "toUserId", toUserUuid.toString(),
-                        "description", request.getDescription()
-                    )
-                ));
-            } else {
-                return ResponseEntity.ok(Map.of(
-                    "success", false,
-                    "message", "Transfer failed"
-                ));
-            }
-
-        } catch (Exception e) {
-            log.error("Error in P2P transfer", e);
-            return ResponseEntity.ok(Map.of(
-                "success", false,
-                "message", "Transfer failed: " + e.getMessage()
-            ));
-        }
-    }
-
-    /**
-     * Request class for P2P transfer
-     */
-    public static class TransferRequest {
-        @NotBlank(message = "Recipient user ID is required")
-        private String toUserId;
-
-        @NotNull(message = "Amount is required")
-        @DecimalMin(value = "0.01", message = "Minimum transfer amount is 0.01")
-        private BigDecimal amount;
-
-        private String description;
-
-        @NotBlank(message = "Password is required")
-        private String password; // added for Binance-like confirmation
-
-        // Getters and setters
-        public String getToUserId() { return toUserId; }
-        public void setToUserId(String toUserId) { this.toUserId = toUserId; }
-
-        public BigDecimal getAmount() { return amount; }
-        public void setAmount(BigDecimal amount) { this.amount = amount; }
-
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
-
-        public String getPassword() { return password; }
-        public void setPassword(String password) { this.password = password; }
-    }
 }

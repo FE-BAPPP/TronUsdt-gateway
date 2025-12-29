@@ -33,8 +33,9 @@ class ProposalApiClient {
   }
 
   private getAuthToken(): string | null {
-    return localStorage.getItem('token') || 
-           localStorage.getItem('userToken');
+    // ✅ FIX: Read from userToken first (matches UserApiClient)
+    return localStorage.getItem('userToken') || 
+           localStorage.getItem('token');
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

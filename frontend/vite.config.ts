@@ -7,4 +7,8 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  define: {
+    // Fix for sockjs-client: define global variable for browser
+    global: 'globalThis',
+  },
 });

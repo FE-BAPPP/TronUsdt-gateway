@@ -35,12 +35,11 @@ public class Milestone {
 
     @Column(length = 10)
     @Builder.Default
-    private String currency = "USDT"; // 🆕 Add if column exists in DB
+    private String currency = "USDT";
 
-    // 🆕 ADD THIS FIELD
     @Column(name = "sequence_order", nullable = false)
     @Builder.Default
-    private Integer sequenceOrder = 1; // Default to 1 for single milestone
+    private Integer sequenceOrder = 1;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -50,14 +49,26 @@ public class Milestone {
     @Column(name = "due_date")
     private LocalDateTime dueDate;
 
+    @Column(name = "submitted_at")
+    private LocalDateTime submittedAt;
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+
     @Column(name = "released_at")
     private LocalDateTime releasedAt;
-
-    @Column(name = "completed_at") // 🆕 Add if exists in DB
-    private LocalDateTime completedAt;
-
-    @Column(name = "approved_by") // 🆕 Add if exists in DB
-    private UUID approvedBy;
+    
+    // ✅ Deliverables submitted by Freelancer
+    @Column(columnDefinition = "TEXT")
+    private String deliverables;
+    
+    // ✅ Freelancer's completion notes
+    @Column(columnDefinition = "TEXT")
+    private String completionNotes;
+    
+    // ✅ Rejection reason from Employer
+    @Column(columnDefinition = "TEXT")
+    private String rejectionReason;
 
     @CreationTimestamp
     @Column(name = "created_at")
@@ -68,7 +79,11 @@ public class Milestone {
     private LocalDateTime updatedAt;
 
     public enum MilestoneStatus {
-        PENDING,
-        RELEASED
+        PENDING,        // Chưa fund
+        IN_PROGRESS,    // Đang thực hiện
+        SUBMITTED,      // Freelancer đã submit
+        APPROVED,       // Employer đã approve
+        REJECTED,       // Employer từ chối
+        RELEASED        // Đã giải ngân
     }
 }

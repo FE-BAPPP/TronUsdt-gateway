@@ -24,9 +24,8 @@ public class EmployerProfile {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
-    @OneToOne
-    @JoinColumn(name = "user_id", unique = true, nullable = false)
-    private User user;
+    @Column(name = "user_id", unique = true, nullable = false)
+    private UUID userId;
 
     private String companyName;
     private String companyWebsite;
